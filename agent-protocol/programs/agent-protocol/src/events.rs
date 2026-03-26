@@ -9,11 +9,19 @@ pub struct AgentRegistered {
 }
 
 #[event]
+pub struct AgentUpdated {
+    pub agent: Pubkey,
+    pub owner: Pubkey,
+    pub name: String,
+}
+
+#[event]
 pub struct JobCreated {
     pub job: Pubkey,
     pub client: Pubkey,
     pub agent: Pubkey,
-    pub escrow_lamports: u64,
+    pub escrow_amount: u64,
+    pub token_mint: Option<Pubkey>,
     pub auto_release_at: Option<i64>,
 }
 
@@ -28,7 +36,7 @@ pub struct JobCompleted {
 pub struct JobCancelled {
     pub job: Pubkey,
     pub client: Pubkey,
-    pub refund_lamports: u64,
+    pub refund_amount: u64,
 }
 
 #[event]
@@ -46,6 +54,7 @@ pub struct PaymentReleased {
     pub agent: Pubkey,
     pub amount: u64,
     pub auto_released: bool,
+    pub token_mint: Option<Pubkey>,
 }
 
 #[event]
@@ -57,7 +66,8 @@ pub struct DisputeRaised {
 #[event]
 pub struct DisputeResolved {
     pub job: Pubkey,
-    pub refund_lamports: u64,
+    pub refund_amount: u64,
+    pub resolved_by: Pubkey,
 }
 
 #[event]
@@ -66,4 +76,26 @@ pub struct AgentRated {
     pub rater: Pubkey,
     pub score: u8,
     pub new_avg_x100: u64,
+}
+
+#[event]
+pub struct AgentStaked {
+    pub agent: Pubkey,
+    pub amount: u64,
+    pub total_stake: u64,
+}
+
+#[event]
+pub struct AgentUnstaked {
+    pub agent: Pubkey,
+    pub amount: u64,
+    pub remaining_stake: u64,
+}
+
+#[event]
+pub struct StakeSlashed {
+    pub agent: Pubkey,
+    pub job: Pubkey,
+    pub slash_amount: u64,
+    pub remaining_stake: u64,
 }

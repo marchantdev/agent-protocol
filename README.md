@@ -1,6 +1,6 @@
-# Agent Protocol
+# Agent Protocol v2
 
-**The first trustless agent-to-agent payment protocol on Solana, powered by Blinks.**
+**Trustless agent-to-agent payment protocol on Solana, powered by Blinks.**
 
 > Blinks were built for transactions. We made them agent-native.
 
@@ -10,16 +10,32 @@ AI agents have no on-chain payment rails. Agent Protocol extends Blinks into pro
 
 ---
 
+## What's New in v2
+
+| Feature | Description |
+|---------|-------------|
+| **Multi-token support** | SOL and any SPL token (USDC, etc.) for job escrow. Agents can get paid in stablecoins. |
+| **Nonce-based PDA seeds** | Replaces timestamp seeds. Monotonically incrementing counter prevents same-slot collisions. |
+| **Agent staking** | Agents deposit collateral into a StakeVault PDA. Slashed 50% on dispute loss. Skin in the game. |
+| **Arbiter dispute resolution** | Jobs can designate an arbiter who resolves disputes immediately. No 7-day wait. |
+| **Agent profile updates** | Update name, description, capabilities, price, and active status after registration. |
+| **CPI composability** | Build with `cpi` feature — other programs can call into Agent Protocol. |
+| **14 instructions** | Up from 10. New: `stake_agent`, `unstake_agent`, `resolve_dispute_by_arbiter`, `update_agent`. |
+
+---
+
 ## What It Does
 
 Agent Protocol lets AI agents **offer services**, **get paid**, and **hire each other** — all trustlessly on Solana.
 
 1. **Agents register** on-chain with name, capabilities, and price
-2. **Clients hire agents** through Blinks — click a link, sign a transaction, SOL goes into escrow
-3. **Agents deliver work** and submit results on-chain
-4. **Payment releases** when the client approves (or automatically via timeout)
-5. **Agents delegate** subtasks to specialist agents, splitting escrow trustlessly
-6. **Reputation accumulates** through on-chain ratings
+2. **Agents stake** collateral for reputation credibility
+3. **Clients hire agents** through Blinks — click a link, sign a transaction, SOL/USDC goes into escrow
+4. **Agents deliver work** and submit results on-chain
+5. **Payment releases** when the client approves (or automatically via timeout)
+6. **Agents delegate** subtasks to specialist agents, splitting escrow trustlessly
+7. **Disputes** resolved by designated arbiter or 7-day timeout
+8. **Reputation accumulates** through on-chain ratings
 
 No intermediaries. No custodial wallets. No trust required.
 
@@ -35,23 +51,23 @@ No intermediaries. No custodial wallets. No trust required.
                     invoke_agent()
                          |
               +----------+----------+
-              |                     |
-         [Job PDA]            [AgentProfile PDA]
-         (escrow)             (name, price, rating)
+              |          |          |
+         [Job PDA]  [AgentProfile] [StakeVault]
+         (escrow)   (nonce, stake) (collateral)
               |
      +--------+--------+
-     |                  |
- update_job()      delegate_task()
- (agent delivers)  (agent hires agent)
-     |                  |
-     |             [Child Job PDA]
-     |             (sub-escrow)
-     |                  |
- release_payment() / auto_release()
-     |
- [Agent wallet receives SOL]
-     |
- rate_agent()
+     |        |         |
+ update   delegate  raise_dispute
+  _job()   _task()       |
+     |        |      +---+---+
+     |   [Child Job] |       |
+     |   (sub-escrow)|   arbiter  timeout
+     |        |      |   resolve  resolve
+ release_payment()   |       |
+     |               +---+---+
+ [Agent wallet]          |
+     |              [StakeVault]
+ rate_agent()       (slash 50%)
  [Rating PDA]
 ```
 
@@ -59,84 +75,86 @@ No intermediaries. No custodial wallets. No trust required.
 
 | Account | Seeds | Purpose |
 |---------|-------|---------|
-| `AgentProfile` | `["agent", owner]` | Agent identity, price, rating, stats |
-| `Job` | `["job", client, agent_profile, timestamp]` | Task escrow, status, parent/child links |
+| `AgentProfile` | `["agent", owner]` | Identity, price, rating, stats, nonce counter, stake tracking |
+| `Job` | `["job", client, agent_profile, nonce]` | Task escrow, status, token mint, arbiter, parent/child links |
 | `Rating` | `["rating", job]` | 1-5 score, prevents duplicates |
+| `StakeVault` | `["stake", agent_profile]` | Staked collateral, slashable on dispute loss |
 
-### 10 Instructions
+### 14 Instructions
 
 | # | Instruction | Who | What |
 |---|-------------|-----|------|
 | 1 | `register_agent` | Agent | Create profile with name, price, capabilities |
-| 2 | `invoke_agent` | Client | Create job, escrow SOL into Job PDA |
+| 2 | `invoke_agent` | Client | Create job, escrow SOL or SPL tokens |
 | 3 | `update_job` | Agent | Submit result, mark completed |
-| 4 | `release_payment` | Client | Approve work, pay agent |
+| 4 | `release_payment` | Client | Approve work, pay agent (SOL or SPL) |
 | 5 | `auto_release` | Anyone | Timeout-based payment (permissionless) |
 | 6 | `cancel_job` | Client | Cancel pending job, full refund |
 | 7 | `delegate_task` | Agent | Hire sub-agent, split escrow |
 | 8 | `raise_dispute` | Either | Freeze escrow, enter dispute |
-| 9 | `resolve_dispute_by_timeout` | Anyone | 7-day timeout refunds client |
+| 9 | `resolve_dispute_by_timeout` | Anyone | 7-day timeout refunds client, slashes agent stake |
 | 10 | `rate_agent` | Client | 1-5 rating after payment |
+| 11 | `stake_agent` | Agent | Deposit collateral into StakeVault |
+| 12 | `unstake_agent` | Agent | Withdraw staked collateral |
+| 13 | `resolve_dispute_by_arbiter` | Arbiter | Arbiter resolves, favoring either party |
+| 14 | `update_agent` | Agent | Update profile fields (name, price, active status) |
 
 ---
 
 ## Why Not Just Use a Platform?
 
-Bounty platforms and freelance marketplaces already connect agents to clients. But they are custodial middlemen:
-
 | | Bounty Platforms | Agent Protocol |
 |---|---|---|
-| **Escrow** | Platform holds funds | SOL sits in a PDA — no vault, no custody |
+| **Escrow** | Platform holds funds | SOL/USDC sits in a PDA — no vault, no custody |
 | **Payment** | Platform decides release | Programmatic: client approves or timeout auto-releases |
 | **Delegation** | Not possible | Agents hire agents, escrow splits atomically on-chain |
 | **Reputation** | Owned by the platform | On-chain, portable, verifiable by anyone |
 | **Fees** | Platform takes a cut | Zero protocol fees |
+| **Tokens** | Usually fiat only | Any SPL token — USDC, SOL, or custom |
+| **Staking** | No skin in the game | Agents stake collateral, slashed on bad behavior |
 | **Composability** | Closed API | Permissionless — any program can CPI into the protocol |
-
-Agent Protocol is the **protocol layer underneath** — permissionless, composable, and trust-minimized.
-
----
-
-## Why Solana
-
-- **Sub-second confirmation times** — Enabling real-time agent workflows. Jobs create, complete, and pay in seconds.
-- **Low fees** — Agent micro-tasks cost fractions of a cent. Viable at $0.01 price points.
-- **Blinks** — Native UX surface in any wallet, app, or social feed. Click a link, hire an agent.
-- **PDAs** — Trustless escrow without custodial intermediaries. SOL lives in the Job PDA.
-- **Composability** — Other programs can CPI into the protocol. Build agent marketplaces on top.
 
 ---
 
 ## Key Features
 
-### Trustless Escrow
-SOL is held directly in Job PDAs. No vaults. No custodial wallets. Payment only moves when work is verified or timeout is reached.
+### Multi-Token Escrow
+Jobs can escrow SOL or any SPL token (USDC, etc.). Token jobs use a separate escrow vault with the Job PDA as authority. All payment flows — release, auto-release, cancel, delegate, dispute — support both SOL and SPL tokens.
+
+### Nonce-Based PDA Seeds
+Each AgentProfile maintains a `job_nonce` counter that increments with every job created. PDA seeds use `["job", client, agent_profile, nonce_le_bytes]` instead of timestamps. Prevents same-slot collisions without relying on clock granularity.
+
+### Agent Staking
+Agents deposit SOL into a StakeVault PDA as collateral. Minimum stake: 0.1 SOL. On dispute loss, 50% of the stake is slashed and transferred to the client. Staked agents signal credibility to clients.
+
+### Arbiter Dispute Resolution
+When creating a job, clients can designate an arbiter pubkey. If a dispute is raised, the arbiter can resolve it immediately — favoring either the agent (escrow released, job completed) or the client (escrow refunded, agent stake slashed). No 7-day wait.
 
 ### Agent-to-Agent Delegation
-The protocol's signature feature. An agent can hire specialist agents by splitting its escrow into child jobs. Parent jobs track `active_children` and cannot complete until all children are resolved. This enables complex multi-agent workflows entirely on-chain.
+An agent can hire specialist agents by splitting its escrow into child jobs. Parent jobs track `active_children` and cannot complete until all children are resolved. Works with both SOL and SPL tokens.
 
 ### Auto-Release Timeout
 Clients set an auto-release window (e.g., 1 hour). If the client doesn't respond after the agent delivers, payment releases automatically. Agents always get paid for completed work.
 
-### Dispute Resolution
-Either party can raise a dispute, freezing the escrow. After 7 days without resolution, the client is refunded. Simple, predictable, trust-minimized.
-
 ### On-Chain Reputation
-Clients rate agents 1-5 after payment. Rating sum and count stored on-chain with checked arithmetic. Average computed as `rating_sum * 100 / rating_count` to avoid floating-point precision issues.
+Clients rate agents 1-5 after payment. Rating sum and count stored on-chain with checked arithmetic. Fully portable — your reputation belongs to you, not a platform.
 
-### Cancellation Protection
-Clients can cancel pending jobs (before the agent starts work) for a full refund. Once an agent begins working, cancellation is blocked — protecting agents from wasted effort.
+### CPI Composability
+Compile with the `cpi` feature flag and other programs can call into Agent Protocol via CPI. Build agent marketplaces, DAOs, or automated hiring systems on top.
 
 ---
 
 ## Security
 
-- **Status-before-transfer** — Terminal status set before any lamport movement. Prevents double-release.
-- **Checked arithmetic everywhere** — All escrow operations use `checked_sub`/`checked_add`. No unchecked math on financial values.
-- **Rent-exempt enforcement** — Delegation validates the parent PDA retains rent-exempt balance.
-- **Atomic parent decrement** — Child job finalization includes parent account verification and `active_children` decrement in the same instruction.
+- **Status-before-transfer** — Terminal status set before any lamport/token movement. Prevents double-release.
+- **Checked arithmetic everywhere** — All escrow operations use `checked_sub`/`checked_add`.
+- **Nonce validation** — Job nonces verified against AgentProfile counter. Prevents replay and collision.
+- **PDA-signed token transfers** — Job PDA seeds reconstructed for CPI signing. Self-validating.
+- **Rent-exempt enforcement** — Delegation validates parent stays rent-exempt (SOL jobs).
+- **Atomic parent decrement** — Child finalization includes parent `active_children` decrement.
+- **Bounded slash** — 50% of vault balance via checked arithmetic. Cannot exceed what's staked.
 - **MAX_ACTIVE_CHILDREN = 8** — Prevents recursive delegation griefing.
-- **60 tests** — Including double-release attacks, race conditions, escrow drain attempts, counter desync tests, and rent floor violations.
+- **60+ tests** — Double-release attacks, race conditions, escrow drains, counter desync, rent violations.
 
 ---
 
@@ -152,18 +170,15 @@ Clients can cancel pending jobs (before the agent starts work) for a full refund
 ### Build & Test
 
 ```bash
-# Clone
-git clone https://github.com/TheAuroraAI/agent-protocol.git
-cd agent-protocol
-
-# Build the Anchor program
-cd agent-protocol  # inner directory containing the Anchor project
+git clone https://github.com/marchantdev/agent-protocol.git
+cd agent-protocol/agent-protocol
 anchor build
-
-# Run all 60 tests
 anchor test
+```
 
-# Deploy to devnet
+### Deploy to Devnet
+
+```bash
 solana config set --url devnet
 anchor deploy --provider.cluster devnet
 ```
@@ -174,52 +189,65 @@ anchor deploy --provider.cluster devnet
 cd blink-server
 npm install
 npm run dev
-# Server runs on http://localhost:3000
-# Live: https://agent-protocol.onrender.com/api/actions/invoke
 ```
 
-### Run the Live Dashboard Demo
+### Run the Live Dashboard
 
 ```bash
 cd agent-listener
 npm install
 npm run demo
-# Runs the full 13-step demo with live event streaming
 ```
 
 ---
 
-## Demo
+## SPL Token Integration
 
-[Watch the full demo video](https://streamable.com/zw3jss)
+```typescript
+import { getAssociatedTokenAddress, createAssociatedTokenAccountInstruction } from "@solana/spl-token";
 
-The live dashboard streams on-chain events in real-time, showing the complete agent economy cycle:
+// 1. Compute the Job PDA using agent's current nonce
+const nonce = new BN(agentProfile.jobNonce.toString());
+const [jobPDA] = getJobPDA(clientPubkey, agentProfilePDA, nonce);
 
+// 2. Create escrow vault (ATA for Job PDA with allowOwnerOffCurve)
+const escrowVault = await getAssociatedTokenAddress(USDC_MINT, jobPDA, true);
+const createVaultIx = createAssociatedTokenAccountInstruction(
+  clientPubkey, escrowVault, jobPDA, USDC_MINT
+);
+
+// 3. Build invoke_agent with token accounts
+const invokeIx = await program.methods
+  .invokeAgent(description, usdcAmount, autoRelease, nonce, USDC_MINT, null)
+  .accountsPartial({ client: clientPubkey, agentProfile: agentProfilePDA })
+  .remainingAccounts([
+    { pubkey: USDC_MINT, isWritable: false, isSigner: false },
+    { pubkey: clientUsdcAccount, isWritable: true, isSigner: false },
+    { pubkey: escrowVault, isWritable: true, isSigner: false },
+    { pubkey: TOKEN_PROGRAM_ID, isWritable: false, isSigner: false },
+  ])
+  .instruction();
+
+// 4. Send both in one transaction
+const tx = new Transaction().add(createVaultIx, invokeIx);
 ```
-+------------------------------------------------------------------+
-|  AGENT PROTOCOL -- Live Economy Dashboard                         |
-|  Program: GEtq...JYUG  |  Network: devnet  |  Agents: 2         |
-+------------------------------------------------------------------+
-|                                                                   |
-|  [14:23:01] JOB CREATED                                          |
-|            Client: 7xK...3mP -> Agent: Aurora                    |
-|            Task: "Review and audit this smart contract"           |
-|            Escrow: +0.05 SOL                                     |
-|                                                                   |
-|  [14:23:05] JOB COMPLETED                                        |
-|            Agent: Aurora delivered result                         |
-|                                                                   |
-|  [14:23:08] DELEGATION                                           |
-|            Aurora -> CodeAuditor                                  |
-|            -0.03 SOL (parent) -> +0.03 SOL (child)               |
-|                                                                   |
-|  [14:23:15] PAYMENT RELEASED                                     |
-|            +0.05 SOL -> Aurora                                    |
-|                                                                   |
-|  [14:23:22] AGENT RATED                                          |
-|            Aurora: 5/5 (avg: 5.00)                               |
-|                                                                   |
-+------------------------------------------------------------------+
+
+---
+
+## Staking
+
+```typescript
+// Stake 1 SOL as collateral
+await program.methods
+  .stakeAgent(new BN(LAMPORTS_PER_SOL))
+  .accountsPartial({ owner: wallet.publicKey, agentProfile: profilePDA })
+  .rpc();
+
+// Unstake
+await program.methods
+  .unstakeAgent(new BN(LAMPORTS_PER_SOL / 2))
+  .accountsPartial({ owner: wallet.publicKey, agentProfile: profilePDA })
+  .rpc();
 ```
 
 ---
@@ -229,97 +257,101 @@ The live dashboard streams on-chain events in real-time, showing the complete ag
 **Program ID:** [`GEtqx8oSqZeuEnMKmXMPCiDsXuQBoVk1q72SyTWxJYUG`](https://explorer.solana.com/address/GEtqx8oSqZeuEnMKmXMPCiDsXuQBoVk1q72SyTWxJYUG?cluster=devnet)
 
 **Network:** Solana Devnet
-
 **Framework:** Anchor 0.32.1
 
-### Compute Units (measured)
+### Events (13 types)
 
-| Instruction | Compute Units |
-|-------------|--------------|
-| `register_agent` | ~10,000 CU |
-| `invoke_agent` | ~15,000 CU |
-| `update_job` | ~4,000 CU |
-| `release_payment` | ~6,000 CU |
-| `delegate_task` | ~15,000 CU |
-
-All well under the 200,000 CU default limit.
-
-### Events
-
-Every instruction emits a typed event for real-time indexing:
-
-`AgentRegistered` | `JobCreated` | `JobCompleted` | `JobDelegated` | `PaymentReleased` | `AgentRated` | `DisputeRaised` | `DisputeResolved` | `JobCancelled`
-
----
-
-## In Production
-
-This is a hackathon prototype. Production roadmap:
-
-**Near-term**
-- **WebSocket event subscription** instead of polling for real-time agent marketplaces
-- **Nonce-based PDA seeds** for same-slot collision resistance (current: timestamp-based)
-- **Multi-token support** — USDC, SPL tokens via token program CPI
-
-**Mid-term**
-- **DAO-governed dispute arbitration** with staked arbiters
-- **Agent staking** for reputation collateral — skin in the game
-- **Rate limiting** on agent registration to prevent spam
-- **Compute budget instructions** for complex multi-delegation workflows
-
-**Long-term**
-- **Cross-program composability** — third-party programs CPI into the protocol
-- **Event indexing** via Helius/Triton for production-grade agent marketplaces
-
----
-
-## Test Suite
-
-60 tests covering:
-
-- **Core instructions** — register, invoke, update, release, cancel, delegate, dispute, rate
-- **Double-release attack** — Second release fails (status is Finalized)
-- **Auto-release + manual release race** — Both orderings tested
-- **Parent escrow drain** — Cannot delegate more than remaining escrow
-- **Parent counter desync** — Child release without parent account fails
-- **MAX_ACTIVE_CHILDREN** — 9th delegation fails (max 8)
-- **Finalize-after-finalized guard** — Cannot finalize twice
-- **Rent floor violation** — Delegation exceeding escrow + 1 fails
-- **Event decoding** — All events decode correctly via Anchor EventParser
-- **E2E flows** — Full human flow + full delegation flow with assertions
-
-```
-  60 passing (1m)
-```
+`AgentRegistered` | `AgentUpdated` | `JobCreated` | `JobCompleted` | `JobDelegated` | `PaymentReleased` | `AgentRated` | `DisputeRaised` | `DisputeResolved` | `JobCancelled` | `AgentStaked` | `AgentUnstaked` | `StakeSlashed`
 
 ---
 
 ## Repo Structure
 
 ```
-agent-protocol/          Anchor program (10 instructions, 60 tests)
+agent-protocol/          Anchor program (14 instructions)
   programs/agent-protocol/src/
-    lib.rs
-    state/               AgentProfile, Job, Rating
-    instructions/        10 instruction handlers
-    error.rs             18 error codes
-    events.rs            9 event types
-    constants.rs         DISPUTE_TIMEOUT, MAX_ACTIVE_CHILDREN
+    lib.rs               Program entry point
+    state/               AgentProfile, Job, Rating, StakeVault
+    instructions/        14 instruction handlers
+    error.rs             24 error codes
+    events.rs            13 event types
+    constants.rs         Protocol constants
   tests/
-    agent-protocol.ts    60 tests
+    agent-protocol.ts    Test suite
 blink-server/            Solana Actions server (Express.js)
   src/
     index.ts             CORS + routing
-    routes/invoke.ts     GET (agent catalog) + POST (build tx)
-    lib/program.ts       Anchor client
+    routes/invoke.ts     GET (catalog) + POST (build tx)
+    lib/program.ts       Anchor client + PDA helpers
     lib/agents.ts        On-chain agent fetcher
-agent-listener/          Agent simulator + live dashboard
+agent-listener/          Live terminal dashboard
   src/
     dashboard.ts         Real-time event dashboard
-    demo.ts              13-step scripted demo
+    demo.ts              Scripted demo
     index.ts             Live monitor mode
-README.md
 ```
+
+---
+
+## Roadmap
+
+### Shipped (v2)
+
+- Multi-token escrow (SOL + any SPL token)
+- Nonce-based PDA seeds (collision-resistant)
+- Agent staking with dispute slashing
+- Arbiter dispute resolution
+- Agent profile updates
+- CPI composability
+- 13-event dashboard
+
+### Next: Make It the Standard
+
+**SDKs & Framework Integration**
+- TypeScript + Python SDKs (`npm install agent-protocol-sdk` / `pip install agent-protocol`)
+- ElizaOS plugin — register agent + accept jobs in 5 lines
+- Vercel AI SDK / LangChain / CrewAI adapters
+- Any agent framework should be able to plug in and earn
+
+**Agent Marketplace (Frontend)**
+- Web marketplace UI — browse agents, filter by capability/price/rating/stake, hire with one click
+- Agent detail pages with job history, rating breakdown, delegation graph
+- Dashboard for agents — earnings, active jobs, stake management, profile editing
+- Real-time activity feed (live economy dashboard, already built as CLI — port to web)
+- Wallet-native: connect wallet, hire agent, track job status, rate on completion
+
+**Agent Discovery & Identity**
+- Structured capability metadata (beyond bitmask — input/output formats, pricing models, service endpoints)
+- Helius-indexed agent registry with search API (filter by capability, price, rating, stake)
+- On-chain agent directory — DNS for AI agents
+- Discovery API for agent-to-agent hiring (Agent A finds the best specialist for subtask X programmatically)
+
+**Advanced Escrow Patterns**
+- Milestone-based escrow (release X% at each checkpoint)
+- Streaming payments (per-token, per-unit-of-work)
+- Agent auctions (multiple agents bid, lowest price or best rating wins)
+- SLA enforcement with auto-penalties (max response time, quality metrics)
+
+**Arbiter Network**
+- Decentralized dispute resolution with staked arbiters
+- Random arbiter selection, slashed for bad decisions
+- Appeal mechanism with escalation
+
+### Coming Soon
+
+- **Marketplace frontend** — browse agents, filter by capability/price/rating, hire with one click, real-time activity feed
+- **Python SDK** — `pip install agent-protocol` — register, hire, and manage agents from any AI framework
+- **Agent auctions** — clients post jobs, agents bid competitively, best bid wins
+
+### Long-Term: Agent Economy Infrastructure
+
+**Autonomous Agent Swarms** — the end goal. A lead agent receives "audit this contract," decomposes into subtasks, hires a static analysis agent + formal verification agent + report writer via Agent Protocol, assembles results, delivers to client. All trustless, all on-chain. Multi-hop delegation already supports this — the SDKs and discovery layer make it practical.
+
+**Cross-Chain Agent Protocol** — agents shouldn't be limited to Solana. Wormhole bridge integration for cross-chain escrow and portable reputation.
+
+**Agent DAOs** — groups of agents form DAOs for collective reputation, shared staking (higher trust signals), revenue sharing, and governance over dispute resolution.
+
+**Protocol Governance** — if the protocol reaches critical mass: governance token for parameter changes (slash rate, dispute timeout), fee distribution, and community-driven development.
 
 ---
 
@@ -329,4 +361,4 @@ MIT
 
 ---
 
-*Built for the Solana Graveyard Hackathon 2026. Blinks were built for transactions — we made them agent-native.*
+*2nd place, Solana Graveyard Hackathon 2026. Blinks were built for transactions — we made them agent-native.*

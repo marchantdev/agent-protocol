@@ -1,5 +1,5 @@
 import { PublicKey } from "@solana/web3.js";
-import { program, getAgentProfilePDA } from "./program";
+import { program } from "./program";
 
 export interface AgentCatalogEntry {
   profilePDA: PublicKey;
@@ -10,6 +10,8 @@ export interface AgentCatalogEntry {
   rating: string;
   jobsCompleted: number;
   isActive: boolean;
+  jobNonce: number;
+  stakeAmount: number;
 }
 
 /**
@@ -38,6 +40,8 @@ export async function getAgentCatalog(): Promise<AgentCatalogEntry[]> {
       rating,
       jobsCompleted: Number(account.jobsCompleted.toString()),
       isActive: account.isActive as boolean,
+      jobNonce: Number(account.jobNonce.toString()),
+      stakeAmount: Number(account.stakeAmount.toString()),
     };
   });
 }

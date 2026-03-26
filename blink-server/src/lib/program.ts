@@ -34,21 +34,33 @@ export const getAgentProfilePDA = (
   );
 
 /**
- * Derive Job PDA from client, agentProfile, and timestamp seed.
- * Seeds: ["job", client, agentProfile, timestamp_le_bytes]
+ * Derive Job PDA from client, agentProfile, and nonce.
+ * Seeds: ["job", client, agentProfile, nonce_le_bytes]
  */
 export const getJobPDA = (
   client: PublicKey,
   agentProfile: PublicKey,
-  ts: anchor.BN
+  nonce: anchor.BN
 ): [PublicKey, number] =>
   PublicKey.findProgramAddressSync(
     [
       Buffer.from("job"),
       client.toBuffer(),
       agentProfile.toBuffer(),
-      ts.toArrayLike(Buffer, "le", 8),
+      nonce.toArrayLike(Buffer, "le", 8),
     ],
+    PROGRAM_ID
+  );
+
+/**
+ * Derive StakeVault PDA from agent profile.
+ * Seeds: ["stake", agentProfile]
+ */
+export const getStakeVaultPDA = (
+  agentProfile: PublicKey
+): [PublicKey, number] =>
+  PublicKey.findProgramAddressSync(
+    [Buffer.from("stake"), agentProfile.toBuffer()],
     PROGRAM_ID
   );
 

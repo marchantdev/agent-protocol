@@ -5,7 +5,7 @@ use anchor_lang::prelude::*;
 pub struct Job {
     pub client: Pubkey,
     pub agent: Pubkey,
-    pub escrow_lamports: u64,
+    pub escrow_amount: u64,
     pub status: JobStatus,
     #[max_len(256)]
     pub description: String,
@@ -17,8 +17,14 @@ pub struct Job {
     pub disputed_at: Option<i64>,
     pub created_at: i64,
     pub completed_at: Option<i64>,
-    pub timestamp_seed: i64,
+    pub nonce_seed: u64,
     pub bump: u8,
+    /// SPL token mint (None = SOL-denominated job)
+    pub token_mint: Option<Pubkey>,
+    /// Token escrow vault address (None for SOL jobs)
+    pub escrow_vault: Option<Pubkey>,
+    /// Designated dispute arbiter (None = timeout-only resolution)
+    pub arbiter: Option<Pubkey>,
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, InitSpace)]

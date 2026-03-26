@@ -8,9 +8,9 @@ export type AgentProtocol = {
   "address": "GEtqx8oSqZeuEnMKmXMPCiDsXuQBoVk1q72SyTWxJYUG",
   "metadata": {
     "name": "agentProtocol",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "spec": "0.1.0",
-    "description": "Created with Anchor"
+    "description": "Trustless agent-to-agent payment protocol on Solana"
   },
   "instructions": [
     {
@@ -101,7 +101,8 @@ export type AgentProtocol = {
           "writable": true
         },
         {
-          "name": "subAgentProfile"
+          "name": "subAgentProfile",
+          "writable": true
         },
         {
           "name": "childJob",
@@ -126,7 +127,7 @@ export type AgentProtocol = {
               },
               {
                 "kind": "arg",
-                "path": "timestampSeed"
+                "path": "nonce"
               }
             ]
           }
@@ -146,8 +147,8 @@ export type AgentProtocol = {
           "type": "u64"
         },
         {
-          "name": "timestampSeed",
-          "type": "i64"
+          "name": "nonce",
+          "type": "u64"
         }
       ]
     },
@@ -170,7 +171,8 @@ export type AgentProtocol = {
           "signer": true
         },
         {
-          "name": "agentProfile"
+          "name": "agentProfile",
+          "writable": true
         },
         {
           "name": "job",
@@ -195,7 +197,7 @@ export type AgentProtocol = {
               },
               {
                 "kind": "arg",
-                "path": "timestampSeed"
+                "path": "nonce"
               }
             ]
           }
@@ -211,7 +213,7 @@ export type AgentProtocol = {
           "type": "string"
         },
         {
-          "name": "paymentLamports",
+          "name": "paymentAmount",
           "type": "u64"
         },
         {
@@ -221,8 +223,20 @@ export type AgentProtocol = {
           }
         },
         {
-          "name": "timestampSeed",
-          "type": "i64"
+          "name": "nonce",
+          "type": "u64"
+        },
+        {
+          "name": "tokenMint",
+          "type": {
+            "option": "pubkey"
+          }
+        },
+        {
+          "name": "arbiter",
+          "type": {
+            "option": "pubkey"
+          }
         }
       ]
     },
@@ -416,6 +430,55 @@ export type AgentProtocol = {
       "args": []
     },
     {
+      "name": "resolveDisputeByArbiter",
+      "discriminator": [
+        79,
+        214,
+        67,
+        176,
+        205,
+        168,
+        237,
+        233
+      ],
+      "accounts": [
+        {
+          "name": "arbiter",
+          "signer": true
+        },
+        {
+          "name": "client",
+          "writable": true
+        },
+        {
+          "name": "agent",
+          "writable": true
+        },
+        {
+          "name": "agentProfile",
+          "writable": true
+        },
+        {
+          "name": "job",
+          "writable": true
+        },
+        {
+          "name": "stakeVault",
+          "docs": [
+            "Optional stake vault for slashing"
+          ],
+          "writable": true,
+          "optional": true
+        }
+      ],
+      "args": [
+        {
+          "name": "favorAgent",
+          "type": "bool"
+        }
+      ]
+    },
+    {
       "name": "resolveDisputeByTimeout",
       "discriminator": [
         66,
@@ -435,9 +498,242 @@ export type AgentProtocol = {
         {
           "name": "job",
           "writable": true
+        },
+        {
+          "name": "stakeVault",
+          "docs": [
+            "Optional stake vault for slashing agent collateral"
+          ],
+          "writable": true,
+          "optional": true
+        },
+        {
+          "name": "agentProfile",
+          "docs": [
+            "Optional agent profile (required if stake_vault is provided)"
+          ],
+          "writable": true,
+          "optional": true
         }
       ],
       "args": []
+    },
+    {
+      "name": "stakeAgent",
+      "discriminator": [
+        57,
+        152,
+        69,
+        17,
+        172,
+        229,
+        29,
+        105
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "agentProfile",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  103,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "stakeVault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  116,
+                  97,
+                  107,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "agentProfile"
+              }
+            ]
+          }
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "unstakeAgent",
+      "discriminator": [
+        233,
+        246,
+        239,
+        66,
+        94,
+        179,
+        65,
+        38
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "agentProfile",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  103,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "stakeVault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  116,
+                  97,
+                  107,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "agentProfile"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "updateAgent",
+      "discriminator": [
+        85,
+        2,
+        178,
+        9,
+        119,
+        139,
+        102,
+        164
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "signer": true
+        },
+        {
+          "name": "agentProfile",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  103,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "name",
+          "type": {
+            "option": "string"
+          }
+        },
+        {
+          "name": "description",
+          "type": {
+            "option": "string"
+          }
+        },
+        {
+          "name": "capabilities",
+          "type": {
+            "option": "u16"
+          }
+        },
+        {
+          "name": "priceLamports",
+          "type": {
+            "option": "u64"
+          }
+        },
+        {
+          "name": "isActive",
+          "type": {
+            "option": "bool"
+          }
+        }
+      ]
     },
     {
       "name": "updateJob",
@@ -508,6 +804,19 @@ export type AgentProtocol = {
         70,
         17
       ]
+    },
+    {
+      "name": "stakeVault",
+      "discriminator": [
+        192,
+        112,
+        65,
+        125,
+        129,
+        151,
+        173,
+        226
+      ]
     }
   ],
   "events": [
@@ -535,6 +844,45 @@ export type AgentProtocol = {
         100,
         189,
         85
+      ]
+    },
+    {
+      "name": "agentStaked",
+      "discriminator": [
+        62,
+        141,
+        167,
+        222,
+        25,
+        22,
+        75,
+        21
+      ]
+    },
+    {
+      "name": "agentUnstaked",
+      "discriminator": [
+        98,
+        83,
+        1,
+        104,
+        121,
+        218,
+        205,
+        198
+      ]
+    },
+    {
+      "name": "agentUpdated",
+      "discriminator": [
+        210,
+        179,
+        162,
+        250,
+        123,
+        250,
+        210,
+        166
       ]
     },
     {
@@ -626,6 +974,19 @@ export type AgentProtocol = {
         254,
         69,
         219
+      ]
+    },
+    {
+      "name": "stakeSlashed",
+      "discriminator": [
+        43,
+        41,
+        196,
+        25,
+        218,
+        235,
+        244,
+        35
       ]
     }
   ],
@@ -719,6 +1080,36 @@ export type AgentProtocol = {
       "code": 6017,
       "name": "tooManyDelegations",
       "msg": "Too many active delegations (max 8)"
+    },
+    {
+      "code": 6018,
+      "name": "invalidNonce",
+      "msg": "Invalid nonce — must match agent profile's current job_nonce"
+    },
+    {
+      "code": 6019,
+      "name": "invalidTokenAccounts",
+      "msg": "Invalid token mint or token accounts"
+    },
+    {
+      "code": 6020,
+      "name": "insufficientStake",
+      "msg": "Insufficient stake amount"
+    },
+    {
+      "code": 6021,
+      "name": "invalidArbiter",
+      "msg": "Invalid arbiter"
+    },
+    {
+      "code": 6022,
+      "name": "missingTokenAccounts",
+      "msg": "Missing required token accounts in remaining_accounts"
+    },
+    {
+      "code": 6023,
+      "name": "escrowVaultMismatch",
+      "msg": "Escrow vault mismatch"
     }
   ],
   "types": [
@@ -770,6 +1161,20 @@ export type AgentProtocol = {
           {
             "name": "bump",
             "type": "u8"
+          },
+          {
+            "name": "jobNonce",
+            "docs": [
+              "Monotonically incrementing counter for collision-resistant Job PDA seeds"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "stakeAmount",
+            "docs": [
+              "Total staked collateral (mirrors StakeVault.amount)"
+            ],
+            "type": "u64"
           }
         ]
       }
@@ -823,6 +1228,66 @@ export type AgentProtocol = {
       }
     },
     {
+      "name": "agentStaked",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "agent",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "totalStake",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "agentUnstaked",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "agent",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "remainingStake",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "agentUpdated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "agent",
+            "type": "pubkey"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "name",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
       "name": "disputeRaised",
       "type": {
         "kind": "struct",
@@ -848,8 +1313,12 @@ export type AgentProtocol = {
             "type": "pubkey"
           },
           {
-            "name": "refundLamports",
+            "name": "refundAmount",
             "type": "u64"
+          },
+          {
+            "name": "resolvedBy",
+            "type": "pubkey"
           }
         ]
       }
@@ -868,7 +1337,7 @@ export type AgentProtocol = {
             "type": "pubkey"
           },
           {
-            "name": "escrowLamports",
+            "name": "escrowAmount",
             "type": "u64"
           },
           {
@@ -920,12 +1389,39 @@ export type AgentProtocol = {
             }
           },
           {
-            "name": "timestampSeed",
-            "type": "i64"
+            "name": "nonceSeed",
+            "type": "u64"
           },
           {
             "name": "bump",
             "type": "u8"
+          },
+          {
+            "name": "tokenMint",
+            "docs": [
+              "SPL token mint (None = SOL-denominated job)"
+            ],
+            "type": {
+              "option": "pubkey"
+            }
+          },
+          {
+            "name": "escrowVault",
+            "docs": [
+              "Token escrow vault address (None for SOL jobs)"
+            ],
+            "type": {
+              "option": "pubkey"
+            }
+          },
+          {
+            "name": "arbiter",
+            "docs": [
+              "Designated dispute arbiter (None = timeout-only resolution)"
+            ],
+            "type": {
+              "option": "pubkey"
+            }
           }
         ]
       }
@@ -944,7 +1440,7 @@ export type AgentProtocol = {
             "type": "pubkey"
           },
           {
-            "name": "refundLamports",
+            "name": "refundAmount",
             "type": "u64"
           }
         ]
@@ -988,8 +1484,14 @@ export type AgentProtocol = {
             "type": "pubkey"
           },
           {
-            "name": "escrowLamports",
+            "name": "escrowAmount",
             "type": "u64"
+          },
+          {
+            "name": "tokenMint",
+            "type": {
+              "option": "pubkey"
+            }
           },
           {
             "name": "autoReleaseAt",
@@ -1074,6 +1576,12 @@ export type AgentProtocol = {
           {
             "name": "autoReleased",
             "type": "bool"
+          },
+          {
+            "name": "tokenMint",
+            "type": {
+              "option": "pubkey"
+            }
           }
         ]
       }
@@ -1102,6 +1610,50 @@ export type AgentProtocol = {
           {
             "name": "createdAt",
             "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "stakeSlashed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "agent",
+            "type": "pubkey"
+          },
+          {
+            "name": "job",
+            "type": "pubkey"
+          },
+          {
+            "name": "slashAmount",
+            "type": "u64"
+          },
+          {
+            "name": "remainingStake",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "stakeVault",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "agentProfile",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
           },
           {
             "name": "bump",

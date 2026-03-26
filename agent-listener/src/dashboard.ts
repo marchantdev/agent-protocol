@@ -75,6 +75,7 @@ export class Dashboard {
   private agentNames: Map<string, string> = new Map();
   private agentCount: number = 0;
   private totalEscrow: number = 0;
+  private totalStaked: number = 0;
   private jobCount: number = 0;
   private renderInterval: NodeJS.Timeout | null = null;
   private startTime: Date;
@@ -98,7 +99,6 @@ export class Dashboard {
       new anchor.BorshCoder(program.idl)
     );
 
-    // Pre-seed known agent names
     if (preseededNames) {
       for (const [key, name] of Object.entries(preseededNames)) {
         this.agentNames.set(key, name);
@@ -106,25 +106,16 @@ export class Dashboard {
     }
   }
 
-  /**
-   * Look up a human-readable name for a pubkey, or return truncated form.
-   */
   private resolveName(pk: PublicKey | string): string {
     const s = typeof pk === "string" ? pk : pk.toBase58();
     return this.agentNames.get(s) || truncatePubkey(s);
   }
 
-  /**
-   * Register a known agent name so the dashboard can show friendly names.
-   */
   public registerAgentName(pubkey: PublicKey | string, name: string): void {
     const s = typeof pubkey === "string" ? pubkey : pubkey.toBase58();
     this.agentNames.set(s, name);
   }
 
-  /**
-   * Subscribe to program logs on devnet and start rendering.
-   */
   public start(): void {
     this.render();
 
@@ -137,15 +128,11 @@ export class Dashboard {
       "confirmed"
     );
 
-    // Refresh the dashboard every second to update uptime
     this.renderInterval = setInterval(() => {
       this.render();
     }, 1000);
   }
 
-  /**
-   * Unsubscribe and stop rendering.
-   */
   public stop(): void {
     if (this.subscriptionId !== null) {
       this.connection.removeOnLogsListener(this.subscriptionId);
@@ -157,9 +144,6 @@ export class Dashboard {
     }
   }
 
-  /**
-   * Manually add an event (for demo mode or annotations).
-   */
   public addEvent(event: DashboardEvent): void {
     this.events.push(event);
     if (this.events.length > MAX_EVENTS) {
@@ -168,9 +152,6 @@ export class Dashboard {
     this.render();
   }
 
-  /**
-   * Add a simple annotation line (for demo step labels).
-   */
   public addAnnotation(text: string): void {
     this.addEvent({
       timestamp: new Date(),
@@ -202,7 +183,6 @@ export class Dashboard {
     switch (event.name) {
       case "agentRegistered": {
         this.agentCount++;
-        // Auto-register the agent name
         if (d.name) {
           this.agentNames.set(d.owner.toBase58(), d.name);
           this.agentNames.set(d.agent.toBase58(), d.name);
@@ -220,11 +200,28 @@ export class Dashboard {
         break;
       }
 
+      case "agentUpdated": {
+        this.addEvent({
+          timestamp: now,
+          type: "agentUpdated",
+          icon: "\u{1F504}",
+          title: "AGENT UPDATED",
+          lines: [
+            `Name: ${chalk.white.bold(d.name)}  Owner: ${chalk.gray(truncatePubkey(d.owner))}`,
+          ],
+        });
+        break;
+      }
+
       case "jobCreated": {
         this.jobCount++;
-        this.totalEscrow += d.escrowLamports.toNumber();
+        const amount = d.escrowAmount || d.escrowLamports;
+        this.totalEscrow += amount.toNumber();
         const clientName = this.resolveName(d.client);
         const agentName = this.resolveName(d.agent);
+        const tokenLabel = d.tokenMint
+          ? chalk.cyan(` [SPL: ${truncatePubkey(d.tokenMint)}]`)
+          : "";
         const autoRelease = d.autoReleaseAt
           ? chalk.gray(`Auto-release: ${new Date(d.autoReleaseAt.toNumber() * 1000).toLocaleTimeString()}`)
           : chalk.gray("Auto-release: No");
@@ -234,8 +231,8 @@ export class Dashboard {
           icon: "\u{1F4B0}",
           title: "JOB CREATED",
           lines: [
-            `Client: ${chalk.white(clientName)} \u{2192} Agent: ${chalk.white.bold(agentName)}`,
-            `Escrow: ${chalk.yellowBright("+" + lamportsToSol(d.escrowLamports) + " SOL")}  ${autoRelease}`,
+            `Client: ${chalk.white(clientName)} \u{2192} Agent: ${chalk.white.bold(agentName)}${tokenLabel}`,
+            `Escrow: ${chalk.yellowBright("+" + lamportsToSol(amount) + " SOL")}  ${autoRelease}`,
           ],
         });
         break;
@@ -275,13 +272,16 @@ export class Dashboard {
       case "paymentReleased": {
         this.totalEscrow -= d.amount.toNumber();
         const agentName = this.resolveName(d.agent);
+        const tokenLabel = d.tokenMint
+          ? chalk.cyan(` [SPL]`)
+          : "";
         this.addEvent({
           timestamp: now,
           type: "paymentReleased",
           icon: "\u{1F4B8}",
           title: "PAYMENT RELEASED",
           lines: [
-            `${chalk.yellowBright("+" + lamportsToSol(d.amount) + " SOL")} \u{2192} ${chalk.magenta.bold(agentName)}`,
+            `${chalk.yellowBright("+" + lamportsToSol(d.amount) + " SOL")} \u{2192} ${chalk.magenta.bold(agentName)}${tokenLabel}`,
             `Auto-released: ${d.autoReleased ? chalk.green("Yes") : chalk.gray("No")}`,
           ],
         });
@@ -328,13 +328,15 @@ export class Dashboard {
           title: "DISPUTE RESOLVED",
           lines: [
             `Job: ${chalk.gray(truncatePubkey(d.job))}`,
-            `Refund: ${chalk.yellowBright(lamportsToSol(d.refundLamports) + " SOL")}`,
+            `Refund: ${chalk.yellowBright(lamportsToSol(d.refundAmount || d.refundLamports) + " SOL")}`,
+            `Resolved by: ${chalk.gray(truncatePubkey(d.resolvedBy))}`,
           ],
         });
         break;
       }
 
       case "jobCancelled": {
+        const refund = d.refundAmount || d.refundLamports;
         this.addEvent({
           timestamp: now,
           type: "jobCancelled",
@@ -342,7 +344,54 @@ export class Dashboard {
           title: "JOB CANCELLED",
           lines: [
             `Client: ${chalk.gray(this.resolveName(d.client))}`,
-            `Refund: ${chalk.yellowBright(lamportsToSol(d.refundLamports) + " SOL")}`,
+            `Refund: ${chalk.yellowBright(lamportsToSol(refund) + " SOL")}`,
+          ],
+        });
+        break;
+      }
+
+      case "agentStaked": {
+        this.totalStaked += d.amount.toNumber();
+        const agentName = this.resolveName(d.agent);
+        this.addEvent({
+          timestamp: now,
+          type: "agentStaked",
+          icon: "\u{1F512}",
+          title: "AGENT STAKED",
+          lines: [
+            `Agent: ${chalk.green.bold(agentName)}`,
+            `Staked: ${chalk.yellowBright("+" + lamportsToSol(d.amount) + " SOL")}  Total: ${chalk.white(lamportsToSol(d.totalStake) + " SOL")}`,
+          ],
+        });
+        break;
+      }
+
+      case "agentUnstaked": {
+        this.totalStaked -= d.amount.toNumber();
+        const agentName = this.resolveName(d.agent);
+        this.addEvent({
+          timestamp: now,
+          type: "agentUnstaked",
+          icon: "\u{1F513}",
+          title: "AGENT UNSTAKED",
+          lines: [
+            `Agent: ${chalk.yellow.bold(agentName)}`,
+            `Withdrawn: ${chalk.yellowBright("-" + lamportsToSol(d.amount) + " SOL")}  Remaining: ${chalk.white(lamportsToSol(d.remainingStake) + " SOL")}`,
+          ],
+        });
+        break;
+      }
+
+      case "stakeSlashed": {
+        const agentName = this.resolveName(d.agent);
+        this.addEvent({
+          timestamp: now,
+          type: "stakeSlashed",
+          icon: "\u{1F525}",
+          title: "STAKE SLASHED",
+          lines: [
+            `Agent: ${chalk.red.bold(agentName)}  Job: ${chalk.gray(truncatePubkey(d.job))}`,
+            `Slashed: ${chalk.red("-" + lamportsToSol(d.slashAmount) + " SOL")}  Remaining: ${chalk.white(lamportsToSol(d.remainingStake) + " SOL")}`,
           ],
         });
         break;
@@ -356,10 +405,9 @@ export class Dashboard {
 
   private render(): void {
     const W = BOX_WIDTH;
-    const inner = W - 6; // content width inside box: ║(1) + 2spaces + content + 2spaces + ║(1)
+    const inner = W - 6;
     const output: string[] = [];
 
-    // Helper to create a padded line inside the box
     const boxLine = (content: string): string => {
       const stripped = content.replace(/\u001b\[[0-9;]*m/g, "");
       const realLen = stripped.length;
@@ -374,22 +422,19 @@ export class Dashboard {
       return `\u{2551}  ${" ".repeat(inner)}  \u{2551}`;
     };
 
-    // Uptime
     const uptime = Math.floor(
       (Date.now() - this.startTime.getTime()) / 1000
     );
     const uptimeStr = `${Math.floor(uptime / 60)}m ${uptime % 60}s`;
 
-    // ── Top border ──
     output.push(
       chalk.cyan(`\u{2554}${"═".repeat(W - 2)}\u{2557}`)
     );
 
-    // ── Header ──
     output.push(
       chalk.cyan(
         boxLine(
-          `${chalk.white.bold("\u{1FAA6}  AGENT PROTOCOL")} ${chalk.gray("\u{2014} Live Economy Dashboard")}`
+          `${chalk.white.bold("\u{1FAA6}  AGENT PROTOCOL v2")} ${chalk.gray("\u{2014} Live Economy Dashboard")}`
         )
       )
     );
@@ -403,17 +448,15 @@ export class Dashboard {
     output.push(
       chalk.cyan(
         boxLine(
-          `${chalk.gray("Jobs:")} ${chalk.yellowBright(String(this.jobCount))}  ${chalk.gray("|")}  ${chalk.gray("Uptime:")} ${chalk.white(uptimeStr)}  ${chalk.gray("|")}  ${chalk.gray("Events:")} ${chalk.yellowBright(String(this.events.length))}`
+          `${chalk.gray("Jobs:")} ${chalk.yellowBright(String(this.jobCount))}  ${chalk.gray("|")}  ${chalk.gray("Staked:")} ${chalk.yellowBright(lamportsToSol(this.totalStaked) + " SOL")}  ${chalk.gray("|")}  ${chalk.gray("Uptime:")} ${chalk.white(uptimeStr)}`
         )
       )
     );
 
-    // ── Separator ──
     output.push(
       chalk.cyan(`\u{2560}${"═".repeat(W - 2)}\u{2563}`)
     );
 
-    // ── Events area ──
     if (this.events.length === 0) {
       output.push(emptyLine());
       output.push(
@@ -452,19 +495,16 @@ export class Dashboard {
       }
     }
 
-    // ── Bottom border ──
     output.push(
       chalk.cyan(`\u{255A}${"═".repeat(W - 2)}\u{255D}`)
     );
 
-    // ── Status bar ──
     output.push(
       chalk.gray(
         `  Press Ctrl+C to exit  |  ${new Date().toLocaleTimeString("en-US", { hour12: false })}`
       )
     );
 
-    // Clear screen and draw
     process.stdout.write("\x1B[2J\x1B[H");
     process.stdout.write(output.join("\n") + "\n");
   }
@@ -475,6 +515,8 @@ export class Dashboard {
     switch (type) {
       case "agentRegistered":
         return chalk.green.bold;
+      case "agentUpdated":
+        return chalk.green;
       case "jobCreated":
         return chalk.green.bold;
       case "jobCompleted":
@@ -491,6 +533,12 @@ export class Dashboard {
         return chalk.bold;
       case "jobCancelled":
         return chalk.red;
+      case "agentStaked":
+        return chalk.green.bold;
+      case "agentUnstaked":
+        return chalk.yellow;
+      case "stakeSlashed":
+        return chalk.red.bold;
       case "annotation":
         return chalk.whiteBright.bold;
       default:

@@ -42,6 +42,8 @@ pub fn handler(
     profile.jobs_completed = 0;
     profile.created_at = Clock::get()?.unix_timestamp;
     profile.bump = ctx.bumps.agent_profile;
+    profile.job_nonce = 0;
+    profile.stake_amount = 0;
 
     emit!(AgentRegistered {
         agent: profile.key(),

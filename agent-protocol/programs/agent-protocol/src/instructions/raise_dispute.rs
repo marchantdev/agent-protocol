@@ -14,13 +14,11 @@ pub fn handler(ctx: Context<RaiseDispute>) -> Result<()> {
     let job = &mut ctx.accounts.job;
     let disputant = ctx.accounts.disputant.key();
 
-    // Must be client or agent
     require!(
         disputant == job.client || disputant == job.agent,
         AgentProtocolError::Unauthorized
     );
 
-    // Cannot dispute terminal states
     require!(
         job.status == JobStatus::Pending
             || job.status == JobStatus::InProgress

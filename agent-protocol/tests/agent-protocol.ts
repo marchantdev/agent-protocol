@@ -50,8 +50,11 @@ describe("agent-protocol", () => {
 
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-  let tsCounter = Math.floor(Date.now() / 1000);
-  const nextTs = () => new BN(tsCounter++);
+  // Nonce helper: reads current nonce from on-chain agent profile
+  async function getNonce(agentProfilePDA: PublicKey): Promise<BN> {
+    const profile = await program.account.agentProfile.fetch(agentProfilePDA);
+    return new BN((profile.jobNonce as any).toString());
+  }
 
   const PRICE = new BN(LAMPORTS_PER_SOL / 2); // 0.5 SOL
   const PAYMENT = new BN(LAMPORTS_PER_SOL); // 1 SOL
@@ -79,17 +82,17 @@ describe("agent-protocol", () => {
     autoReleaseSecs: BN | null = null,
     desc = "Test task"
   ) {
-    const ts = nextTs();
-    const [jobPDA] = getJobPDA(client.publicKey, agentProfilePDA, ts);
+    const nonce = await getNonce(agentProfilePDA);
+    const [jobPDA] = getJobPDA(client.publicKey, agentProfilePDA, nonce);
     await program.methods
-      .invokeAgent(desc, payment, autoReleaseSecs, ts)
+      .invokeAgent(desc, payment, autoReleaseSecs, nonce, null, null)
       .accountsPartial({
         client: client.publicKey,
         agentProfile: agentProfilePDA,
       })
       .signers([client])
       .rpc();
-    return { jobPDA, ts };
+    return { jobPDA, ts: nonce };
   }
 
   async function updateJob(agent: Keypair, jobPDA: PublicKey, uri = "https://result.example.com") {
@@ -154,10 +157,10 @@ describe("agent-protocol", () => {
     amount: BN,
     desc = "Subtask"
   ) {
-    const ts = nextTs();
-    const [childPDA] = getJobPDA(agent.publicKey, subAgentProfilePDA, ts);
+    const nonce = await getNonce(subAgentProfilePDA);
+    const [childPDA] = getJobPDA(agent.publicKey, subAgentProfilePDA, nonce);
     await program.methods
-      .delegateTask(desc, amount, ts)
+      .delegateTask(desc, amount, nonce)
       .accountsPartial({
         delegatingAgent: agent.publicKey,
         parentJob: parentJobPDA,
@@ -165,7 +168,7 @@ describe("agent-protocol", () => {
       })
       .signers([agent])
       .rpc();
-    return { childJobPDA: childPDA, ts };
+    return { childJobPDA: childPDA, ts: nonce };
   }
 
   async function raiseDispute(disputant: Keypair, jobPDA: PublicKey) {
@@ -291,7 +294,7 @@ describe("agent-protocol", () => {
       const job = await program.account.job.fetch(jobPDA);
       expect(job.client.toBase58()).to.equal(clientKp.publicKey.toBase58());
       expect(job.agent.toBase58()).to.equal(agentOwnerA.publicKey.toBase58());
-      expect(job.escrowLamports.toNumber()).to.equal(PAYMENT.toNumber());
+      expect(job.escrowAmount.toNumber()).to.equal(PAYMENT.toNumber());
       expect(Object.keys(job.status)[0]).to.equal("pending");
       expect(job.description).to.equal("Test task");
       expect(job.activeChildren).to.equal(0);
@@ -415,7 +418,7 @@ describe("agent-protocol", () => {
 
       const job = await program.account.job.fetch(jobPDA);
       expect(Object.keys(job.status)[0]).to.equal("finalized");
-      expect(job.escrowLamports.toNumber()).to.equal(0);
+      expect(job.escrowAmount.toNumber()).to.equal(0);
 
       // PDA lamports == rent-exempt minimum (no stray escrow)
       const info = await connection.getAccountInfo(jobPDA);
@@ -480,7 +483,7 @@ describe("agent-protocol", () => {
       expect(info!.lamports).to.equal(rent);
 
       const job = await program.account.job.fetch(jobPDA);
-      expect(job.escrowLamports.toNumber()).to.equal(0);
+      expect(job.escrowAmount.toNumber()).to.equal(0);
       expect(Object.keys(job.status)[0]).to.equal("finalized");
     });
 
@@ -610,13 +613,13 @@ describe("agent-protocol", () => {
 
       const child = await program.account.job.fetch(childJobPDA);
       expect(child.parentJob!.toBase58()).to.equal(parentPDA.toBase58());
-      expect(child.escrowLamports.toNumber()).to.equal(delegateAmt.toNumber());
+      expect(child.escrowAmount.toNumber()).to.equal(delegateAmt.toNumber());
       expect(child.agent.toBase58()).to.equal(agentOwnerB.publicKey.toBase58());
       expect(Object.keys(child.status)[0]).to.equal("pending");
 
       const parent = await program.account.job.fetch(parentPDA);
       expect(parent.activeChildren).to.equal(1);
-      expect(parent.escrowLamports.toNumber()).to.equal(
+      expect(parent.escrowAmount.toNumber()).to.equal(
         PAYMENT.toNumber() - delegateAmt.toNumber()
       );
       // Parent auto-flipped to InProgress
@@ -656,14 +659,14 @@ describe("agent-protocol", () => {
     it("rejects empty description", async () => {
       const { jobPDA: parentPDA } = await invokeAgent(clientKp, agentProfileA);
       try {
-        const ts = nextTs();
+        const nonce = await getNonce(agentProfileB);
         const [childPDA] = getJobPDA(
           agentOwnerA.publicKey,
           agentProfileB,
-          ts
+          nonce
         );
         await program.methods
-          .delegateTask("", new BN(LAMPORTS_PER_SOL / 10), ts)
+          .delegateTask("", new BN(LAMPORTS_PER_SOL / 10), nonce)
           .accountsPartial({
             delegatingAgent: agentOwnerA.publicKey,
             parentJob: parentPDA,
@@ -721,7 +724,7 @@ describe("agent-protocol", () => {
       try {
         await program.methods
           .resolveDisputeByTimeout()
-          .accountsPartial({ client: clientKp.publicKey, job: jobPDA })
+          .accountsPartial({ client: clientKp.publicKey, job: jobPDA, stakeVault: null, agentProfile: null })
           .rpc();
         expect.fail("Should have thrown");
       } catch (err: any) {
@@ -735,7 +738,7 @@ describe("agent-protocol", () => {
       try {
         await program.methods
           .resolveDisputeByTimeout()
-          .accountsPartial({ client: clientKp.publicKey, job: jobPDA })
+          .accountsPartial({ client: clientKp.publicKey, job: jobPDA, stakeVault: null, agentProfile: null })
           .rpc();
         expect.fail("Should have thrown");
       } catch (err: any) {
@@ -1198,7 +1201,7 @@ describe("agent-protocol", () => {
         new BN(0)
       );
       const child = await program.account.job.fetch(childJobPDA);
-      expect(child.escrowLamports.toNumber()).to.equal(0);
+      expect(child.escrowAmount.toNumber()).to.equal(0);
     });
 
     it("delegating after parent completed fails", async () => {
@@ -1281,7 +1284,7 @@ describe("agent-protocol", () => {
       // Job finalized
       const finalJob = await program.account.job.fetch(jobPDA);
       expect(Object.keys(finalJob.status)[0]).to.equal("finalized");
-      expect(finalJob.escrowLamports.toNumber()).to.equal(0);
+      expect(finalJob.escrowAmount.toNumber()).to.equal(0);
 
       // Rate
       await rateAgent(client, jobPDA, profilePDA, 5);
@@ -1329,7 +1332,7 @@ describe("agent-protocol", () => {
       // Verify parent state
       let parent = await program.account.job.fetch(parentJob);
       expect(parent.activeChildren).to.equal(1);
-      expect(parent.escrowLamports.toNumber()).to.equal(
+      expect(parent.escrowAmount.toNumber()).to.equal(
         totalPayment.toNumber() - delegateAmt.toNumber()
       );
 
@@ -1359,7 +1362,7 @@ describe("agent-protocol", () => {
       // Parent job finalized
       const parentFinal = await program.account.job.fetch(parentJob);
       expect(Object.keys(parentFinal.status)[0]).to.equal("finalized");
-      expect(parentFinal.escrowLamports.toNumber()).to.equal(0);
+      expect(parentFinal.escrowAmount.toNumber()).to.equal(0);
 
       // Client rates Agent A
       await rateAgent(client, parentJob, profileA, 5);
@@ -1416,10 +1419,10 @@ describe("agent-protocol", () => {
       };
 
       // 1) invoke_agent — capture JobCreated event
-      const ts = nextTs();
-      const [jobPDA] = getJobPDA(client.publicKey, profilePDA, ts);
+      const nonce = await getNonce(profilePDA);
+      const [jobPDA] = getJobPDA(client.publicKey, profilePDA, nonce);
       const invokeTx = await program.methods
-        .invokeAgent("Event test", PAYMENT, null, ts)
+        .invokeAgent("Event test", PAYMENT, null, nonce, null, null)
         .accountsPartial({ client: client.publicKey, agentProfile: profilePDA })
         .signers([client])
         .rpc();
@@ -1428,7 +1431,7 @@ describe("agent-protocol", () => {
       expect(jobCreatedEvent).to.exist;
       expect(jobCreatedEvent.data.client.toBase58()).to.equal(client.publicKey.toBase58());
       expect(jobCreatedEvent.data.agent.toBase58()).to.equal(owner.publicKey.toBase58());
-      expect(jobCreatedEvent.data.escrowLamports.toNumber()).to.equal(PAYMENT.toNumber());
+      expect(jobCreatedEvent.data.escrowAmount.toNumber()).to.equal(PAYMENT.toNumber());
 
       // 2) update_job — capture JobCompleted event
       const updateTx = await program.methods
@@ -1502,10 +1505,10 @@ describe("agent-protocol", () => {
       const regDetails = await fetchTx(regTx);
 
       // Invoke
-      const ts1 = nextTs();
-      const [jobPDA1] = getJobPDA(client.publicKey, profilePDA, ts1);
+      const nonce1 = await getNonce(profilePDA);
+      const [jobPDA1] = getJobPDA(client.publicKey, profilePDA, nonce1);
       const invokeTx = await program.methods
-        .invokeAgent("CU test task", PAYMENT, null, ts1)
+        .invokeAgent("CU test task", PAYMENT, null, nonce1, null, null)
         .accountsPartial({ client: client.publicKey, agentProfile: profilePDA })
         .signers([client])
         .rpc();
@@ -1534,10 +1537,10 @@ describe("agent-protocol", () => {
       const releaseDetails = await fetchTx(releaseTx);
 
       // Delegate (new job for this)
-      const ts2 = nextTs();
-      const [jobPDA2] = getJobPDA(client.publicKey, profilePDA, ts2);
+      const nonce2 = await getNonce(profilePDA);
+      const [jobPDA2] = getJobPDA(client.publicKey, profilePDA, nonce2);
       await program.methods
-        .invokeAgent("CU delegate test", PAYMENT, null, ts2)
+        .invokeAgent("CU delegate test", PAYMENT, null, nonce2, null, null)
         .accountsPartial({ client: client.publicKey, agentProfile: profilePDA })
         .signers([client])
         .rpc();
@@ -1552,9 +1555,9 @@ describe("agent-protocol", () => {
         .signers([subOwner])
         .rpc();
 
-      const ts3 = nextTs();
+      const nonce3 = await getNonce(subProfile);
       const delegateTx = await program.methods
-        .delegateTask("CU subtask", new BN(LAMPORTS_PER_SOL / 4), ts3)
+        .delegateTask("CU subtask", new BN(LAMPORTS_PER_SOL / 4), nonce3)
         .accountsPartial({
           delegatingAgent: owner.publicKey,
           parentJob: jobPDA2,

@@ -44,7 +44,6 @@ pub fn handler(ctx: Context<RateAgent>, score: u8) -> Result<()> {
         .checked_add(1)
         .ok_or(AgentProtocolError::Overflow)?;
 
-    // Average * 100 (avoids f64)
     let new_avg_x100 = profile.rating_sum
         .checked_mul(100)
         .ok_or(AgentProtocolError::Overflow)?

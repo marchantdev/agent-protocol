@@ -31,7 +31,9 @@ router.get("/api/actions/invoke", async (_req: Request, res: Response) => {
     const agentButtons = uniqueAgents.map((agent) => {
       const priceSOL = (agent.priceLamports / 1e9).toFixed(2);
       const starRating = agent.rating === "New" ? "New" : `${agent.rating}`;
-      const label = `${agent.name} (${starRating} | ${agent.jobsCompleted} jobs | ${priceSOL} SOL)`;
+      const stakeSOL = (agent.stakeAmount / 1e9).toFixed(2);
+      const stakeLabel = agent.stakeAmount > 0 ? ` | ${stakeSOL} staked` : "";
+      const label = `${agent.name} (${starRating} | ${agent.jobsCompleted} jobs | ${priceSOL} SOL${stakeLabel})`;
 
       return {
         type: "transaction" as const,
@@ -40,7 +42,6 @@ router.get("/api/actions/invoke", async (_req: Request, res: Response) => {
       };
     });
 
-    // Determine a default agent for the custom task input
     const defaultAgentOwner =
       uniqueAgents.length > 0
         ? uniqueAgents[0].owner.toBase58()
@@ -48,7 +49,6 @@ router.get("/api/actions/invoke", async (_req: Request, res: Response) => {
 
     const actions: any[] = [...agentButtons];
 
-    // Add custom task input only if there are agents available
     if (defaultAgentOwner) {
       actions.push({
         type: "transaction",
@@ -68,9 +68,9 @@ router.get("/api/actions/invoke", async (_req: Request, res: Response) => {
     const response = {
       type: "action",
       icon: "https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png",
-      title: "Agent Protocol -- Hire an AI Agent",
+      title: "Agent Protocol v2 — Hire an AI Agent",
       description:
-        "Trustless AI agent marketplace on Solana. Escrow-backed jobs, atomic delegation, and on-chain reputation. Blink-native.",
+        "Trustless AI agent marketplace on Solana. SOL + USDC escrow, agent staking, arbiter disputes, and on-chain reputation. Blink-native.",
       label: "Hire Agent",
       links: {
         actions,
@@ -91,6 +91,7 @@ router.get("/api/actions/invoke", async (_req: Request, res: Response) => {
  *
  * Receives the user's wallet pubkey in the body and builds an unsigned
  * invoke_agent transaction for the wallet to sign.
+ * Uses nonce-based PDA derivation (reads agent profile's current nonce).
  */
 router.post("/api/actions/invoke", async (req: Request, res: Response) => {
   try {
@@ -123,7 +124,7 @@ router.post("/api/actions/invoke", async (req: Request, res: Response) => {
     // Derive the AgentProfile PDA
     const [agentProfilePDA] = getAgentProfilePDA(agentOwner);
 
-    // Fetch the on-chain profile to get the price
+    // Fetch the on-chain profile to get price and current nonce
     let profile: any;
     try {
       profile = await (program.account as any).agentProfile.fetch(agentProfilePDA);
@@ -137,15 +138,22 @@ router.post("/api/actions/invoke", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Agent is not currently active" });
     }
 
-    // Build the invoke_agent instruction
-    const ts = new BN(Math.floor(Date.now() / 1000));
+    // Use the agent's current nonce for PDA derivation
+    const nonce = new BN(profile.jobNonce.toString());
     const payment = new BN(profile.priceLamports.toString());
     const autoRelease = new BN(3600); // 1 hour default
 
-    const [jobPDA] = getJobPDA(clientPubkey, agentProfilePDA, ts);
+    const [jobPDA] = getJobPDA(clientPubkey, agentProfilePDA, nonce);
 
     const ix = await program.methods
-      .invokeAgent(task, payment, autoRelease, ts)
+      .invokeAgent(
+        task,
+        payment,
+        autoRelease,
+        nonce,
+        null,  // token_mint: None (SOL job)
+        null,  // arbiter: None
+      )
       .accountsPartial({
         client: clientPubkey,
         agentProfile: agentProfilePDA,
@@ -153,7 +161,6 @@ router.post("/api/actions/invoke", async (req: Request, res: Response) => {
       })
       .instruction();
 
-    // Build the transaction
     const { blockhash } = await connection.getLatestBlockhash();
 
     const tx = new Transaction({
@@ -161,7 +168,6 @@ router.post("/api/actions/invoke", async (req: Request, res: Response) => {
       feePayer: clientPubkey,
     }).add(ix);
 
-    // Serialize for the wallet to sign
     const serializedTx = tx
       .serialize({ requireAllSignatures: false })
       .toString("base64");
@@ -171,7 +177,7 @@ router.post("/api/actions/invoke", async (req: Request, res: Response) => {
     return res.json({
       type: "transaction",
       transaction: serializedTx,
-      message: `Hiring ${profile.name} for "${task}" -- ${priceSOL} SOL escrowed`,
+      message: `Hiring ${profile.name} for "${task}" — ${priceSOL} SOL escrowed`,
     });
   } catch (err: any) {
     console.error("POST /api/actions/invoke error:", err);

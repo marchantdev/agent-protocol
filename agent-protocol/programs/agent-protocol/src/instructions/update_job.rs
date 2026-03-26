@@ -24,7 +24,6 @@ pub fn handler(ctx: Context<UpdateJob>, result_uri: String) -> Result<()> {
     );
     require!(job.active_children == 0, AgentProtocolError::UnresolvedChildren);
 
-    // Auto-flip Pending → InProgress before completing
     if job.status == JobStatus::Pending {
         job.status = JobStatus::InProgress;
     }

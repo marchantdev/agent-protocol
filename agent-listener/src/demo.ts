@@ -98,8 +98,11 @@ const getRatingPDA = (job: PublicKey): [PublicKey, number] =>
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-let tsCounter = Math.floor(Date.now() / 1000);
-const nextTs = () => new BN(tsCounter++);
+// Nonce counters per agent (v2: replaces timestamp-based seeds)
+let auroraNonce = 0;
+let auditorNonce = 0;
+const nextAuroraNonce = () => new BN(auroraNonce++);
+const nextAuditorNonce = () => new BN(auditorNonce++);
 
 function stepLabel(step: number, total: number, msg: string): void {
   console.log(
@@ -355,14 +358,16 @@ async function main() {
     // ── Step 3: Client invokes Aurora ──
     dashboard.addAnnotation('Step 3/13: Client invokes Aurora -- "Review and audit this smart contract"');
     await sleep(2000);
-    const job1Ts = nextTs();
-    const [job1PDA] = getJobPDA(mainWallet.publicKey, auroraProfilePDA, job1Ts);
+    const job1Nonce = nextAuroraNonce();
+    const [job1PDA] = getJobPDA(mainWallet.publicKey, auroraProfilePDA, job1Nonce);
     await mainProgram.methods
       .invokeAgent(
         "Review and audit this smart contract",
         JOB1_PAYMENT,
         new BN(3600), // 1 hour auto-release
-        job1Ts
+        job1Nonce,
+        null,  // token_mint: SOL
+        null,  // arbiter: none
       )
       .accountsPartial({
         client: mainWallet.publicKey,
@@ -418,14 +423,16 @@ async function main() {
     // ── Step 7: New job with delegation ──
     dashboard.addAnnotation('Step 7/13: New job -- "Full security audit with specialist review" (0.08 SOL)');
     await sleep(3000);
-    const job2Ts = nextTs();
-    const [job2PDA] = getJobPDA(mainWallet.publicKey, auroraProfilePDA, job2Ts);
+    const job2Nonce = nextAuroraNonce();
+    const [job2PDA] = getJobPDA(mainWallet.publicKey, auroraProfilePDA, job2Nonce);
     await mainProgram.methods
       .invokeAgent(
         "Full security audit with specialist review",
         JOB2_PAYMENT,
         null, // no auto-release
-        job2Ts
+        job2Nonce,
+        null,  // token_mint: SOL
+        null,  // arbiter: none
       )
       .accountsPartial({
         client: mainWallet.publicKey,
@@ -438,17 +445,17 @@ async function main() {
     // ── Step 8: Aurora delegates to CodeAuditor ──
     dashboard.addAnnotation("Step 8/13: Aurora delegates subtask to CodeAuditor (0.03 SOL)...");
     await sleep(3000);
-    const childTs = nextTs();
+    const childNonce = nextAuditorNonce();
     const [childJobPDA] = getJobPDA(
       mainWallet.publicKey,
       auditorProfilePDA,
-      childTs
+      childNonce
     );
     await mainProgram.methods
       .delegateTask(
         "Perform deep security analysis of reentrancy vectors",
         DELEGATION_AMT,
-        childTs
+        childNonce
       )
       .accountsPartial({
         delegatingAgent: mainWallet.publicKey,
@@ -565,7 +572,7 @@ async function main() {
   console.log(chalk.cyan.bold("        ║                                              ║"));
   console.log(chalk.cyan.bold("        ╠══════════════════════════════════════════════╣"));
   console.log(chalk.cyan.bold("        ║                                              ║"));
-  console.log(chalk.cyan.bold("        ║") + chalk.white("   10 instructions  |  60 tests  |  devnet    ") + chalk.cyan.bold("║"));
+  console.log(chalk.cyan.bold("        ║") + chalk.white("   14 instructions  |  60+ tests  |  devnet    ") + chalk.cyan.bold("║"));
   console.log(chalk.cyan.bold("        ║                                              ║"));
   console.log(chalk.cyan.bold("        ╚══════════════════════════════════════════════╝"));
   console.log("\n");

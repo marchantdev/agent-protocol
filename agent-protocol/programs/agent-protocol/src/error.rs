@@ -38,4 +38,16 @@ pub enum AgentProtocolError {
     Overflow,
     #[msg("Too many active delegations (max 8)")]
     TooManyDelegations,
+    #[msg("Invalid nonce — must match agent profile's current job_nonce")]
+    InvalidNonce,
+    #[msg("Invalid token mint or token accounts")]
+    InvalidTokenAccounts,
+    #[msg("Insufficient stake amount")]
+    InsufficientStake,
+    #[msg("Invalid arbiter")]
+    InvalidArbiter,
+    #[msg("Missing required token accounts in remaining_accounts")]
+    MissingTokenAccounts,
+    #[msg("Escrow vault mismatch")]
+    EscrowVaultMismatch,
 }

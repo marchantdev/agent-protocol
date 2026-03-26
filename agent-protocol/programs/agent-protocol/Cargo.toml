@@ -1,7 +1,7 @@
 [package]
 name = "agent-protocol"
-version = "0.1.0"
-description = "Created with Anchor"
+version = "0.2.0"
+description = "Trustless agent-to-agent payment protocol on Solana"
 edition = "2021"
 
 [lib]
@@ -19,10 +19,9 @@ anchor-debug = []
 custom-heap = []
 custom-panic = []
 
-
 [dependencies]
-anchor-lang = "0.32.1"
-
+anchor-lang = { version = "0.32.1", features = ["init-if-needed"] }
+anchor-spl = { version = "0.32.1", features = ["token"], default-features = false }
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(target_os, values("solana"))'] }

@@ -2,9 +2,9 @@
   "address": "GEtqx8oSqZeuEnMKmXMPCiDsXuQBoVk1q72SyTWxJYUG",
   "metadata": {
     "name": "agent_protocol",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "spec": "0.1.0",
-    "description": "Created with Anchor"
+    "description": "Trustless agent-to-agent payment protocol on Solana"
   },
   "instructions": [
     {
@@ -95,7 +95,8 @@
           "writable": true
         },
         {
-          "name": "sub_agent_profile"
+          "name": "sub_agent_profile",
+          "writable": true
         },
         {
           "name": "child_job",
@@ -120,7 +121,7 @@
               },
               {
                 "kind": "arg",
-                "path": "timestamp_seed"
+                "path": "nonce"
               }
             ]
           }
@@ -140,8 +141,8 @@
           "type": "u64"
         },
         {
-          "name": "timestamp_seed",
-          "type": "i64"
+          "name": "nonce",
+          "type": "u64"
         }
       ]
     },
@@ -164,7 +165,8 @@
           "signer": true
         },
         {
-          "name": "agent_profile"
+          "name": "agent_profile",
+          "writable": true
         },
         {
           "name": "job",
@@ -189,7 +191,7 @@
               },
               {
                 "kind": "arg",
-                "path": "timestamp_seed"
+                "path": "nonce"
               }
             ]
           }
@@ -205,7 +207,7 @@
           "type": "string"
         },
         {
-          "name": "payment_lamports",
+          "name": "payment_amount",
           "type": "u64"
         },
         {
@@ -215,8 +217,20 @@
           }
         },
         {
-          "name": "timestamp_seed",
-          "type": "i64"
+          "name": "nonce",
+          "type": "u64"
+        },
+        {
+          "name": "token_mint",
+          "type": {
+            "option": "pubkey"
+          }
+        },
+        {
+          "name": "arbiter",
+          "type": {
+            "option": "pubkey"
+          }
         }
       ]
     },
@@ -410,6 +424,55 @@
       "args": []
     },
     {
+      "name": "resolve_dispute_by_arbiter",
+      "discriminator": [
+        79,
+        214,
+        67,
+        176,
+        205,
+        168,
+        237,
+        233
+      ],
+      "accounts": [
+        {
+          "name": "arbiter",
+          "signer": true
+        },
+        {
+          "name": "client",
+          "writable": true
+        },
+        {
+          "name": "agent",
+          "writable": true
+        },
+        {
+          "name": "agent_profile",
+          "writable": true
+        },
+        {
+          "name": "job",
+          "writable": true
+        },
+        {
+          "name": "stake_vault",
+          "docs": [
+            "Optional stake vault for slashing"
+          ],
+          "writable": true,
+          "optional": true
+        }
+      ],
+      "args": [
+        {
+          "name": "favor_agent",
+          "type": "bool"
+        }
+      ]
+    },
+    {
       "name": "resolve_dispute_by_timeout",
       "discriminator": [
         66,
@@ -429,9 +492,242 @@
         {
           "name": "job",
           "writable": true
+        },
+        {
+          "name": "stake_vault",
+          "docs": [
+            "Optional stake vault for slashing agent collateral"
+          ],
+          "writable": true,
+          "optional": true
+        },
+        {
+          "name": "agent_profile",
+          "docs": [
+            "Optional agent profile (required if stake_vault is provided)"
+          ],
+          "writable": true,
+          "optional": true
         }
       ],
       "args": []
+    },
+    {
+      "name": "stake_agent",
+      "discriminator": [
+        57,
+        152,
+        69,
+        17,
+        172,
+        229,
+        29,
+        105
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "agent_profile",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  103,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "stake_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  116,
+                  97,
+                  107,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "agent_profile"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "unstake_agent",
+      "discriminator": [
+        233,
+        246,
+        239,
+        66,
+        94,
+        179,
+        65,
+        38
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "agent_profile",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  103,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "stake_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  116,
+                  97,
+                  107,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "agent_profile"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "update_agent",
+      "discriminator": [
+        85,
+        2,
+        178,
+        9,
+        119,
+        139,
+        102,
+        164
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "signer": true
+        },
+        {
+          "name": "agent_profile",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  103,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "name",
+          "type": {
+            "option": "string"
+          }
+        },
+        {
+          "name": "description",
+          "type": {
+            "option": "string"
+          }
+        },
+        {
+          "name": "capabilities",
+          "type": {
+            "option": "u16"
+          }
+        },
+        {
+          "name": "price_lamports",
+          "type": {
+            "option": "u64"
+          }
+        },
+        {
+          "name": "is_active",
+          "type": {
+            "option": "bool"
+          }
+        }
+      ]
     },
     {
       "name": "update_job",
@@ -502,6 +798,19 @@
         70,
         17
       ]
+    },
+    {
+      "name": "StakeVault",
+      "discriminator": [
+        192,
+        112,
+        65,
+        125,
+        129,
+        151,
+        173,
+        226
+      ]
     }
   ],
   "events": [
@@ -529,6 +838,45 @@
         100,
         189,
         85
+      ]
+    },
+    {
+      "name": "AgentStaked",
+      "discriminator": [
+        62,
+        141,
+        167,
+        222,
+        25,
+        22,
+        75,
+        21
+      ]
+    },
+    {
+      "name": "AgentUnstaked",
+      "discriminator": [
+        98,
+        83,
+        1,
+        104,
+        121,
+        218,
+        205,
+        198
+      ]
+    },
+    {
+      "name": "AgentUpdated",
+      "discriminator": [
+        210,
+        179,
+        162,
+        250,
+        123,
+        250,
+        210,
+        166
       ]
     },
     {
@@ -620,6 +968,19 @@
         254,
         69,
         219
+      ]
+    },
+    {
+      "name": "StakeSlashed",
+      "discriminator": [
+        43,
+        41,
+        196,
+        25,
+        218,
+        235,
+        244,
+        35
       ]
     }
   ],
@@ -713,6 +1074,36 @@
       "code": 6017,
       "name": "TooManyDelegations",
       "msg": "Too many active delegations (max 8)"
+    },
+    {
+      "code": 6018,
+      "name": "InvalidNonce",
+      "msg": "Invalid nonce — must match agent profile's current job_nonce"
+    },
+    {
+      "code": 6019,
+      "name": "InvalidTokenAccounts",
+      "msg": "Invalid token mint or token accounts"
+    },
+    {
+      "code": 6020,
+      "name": "InsufficientStake",
+      "msg": "Insufficient stake amount"
+    },
+    {
+      "code": 6021,
+      "name": "InvalidArbiter",
+      "msg": "Invalid arbiter"
+    },
+    {
+      "code": 6022,
+      "name": "MissingTokenAccounts",
+      "msg": "Missing required token accounts in remaining_accounts"
+    },
+    {
+      "code": 6023,
+      "name": "EscrowVaultMismatch",
+      "msg": "Escrow vault mismatch"
     }
   ],
   "types": [
@@ -764,6 +1155,20 @@
           {
             "name": "bump",
             "type": "u8"
+          },
+          {
+            "name": "job_nonce",
+            "docs": [
+              "Monotonically incrementing counter for collision-resistant Job PDA seeds"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "stake_amount",
+            "docs": [
+              "Total staked collateral (mirrors StakeVault.amount)"
+            ],
+            "type": "u64"
           }
         ]
       }
@@ -817,6 +1222,66 @@
       }
     },
     {
+      "name": "AgentStaked",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "agent",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "total_stake",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "AgentUnstaked",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "agent",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "remaining_stake",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "AgentUpdated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "agent",
+            "type": "pubkey"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "name",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
       "name": "DisputeRaised",
       "type": {
         "kind": "struct",
@@ -842,8 +1307,12 @@
             "type": "pubkey"
           },
           {
-            "name": "refund_lamports",
+            "name": "refund_amount",
             "type": "u64"
+          },
+          {
+            "name": "resolved_by",
+            "type": "pubkey"
           }
         ]
       }
@@ -862,7 +1331,7 @@
             "type": "pubkey"
           },
           {
-            "name": "escrow_lamports",
+            "name": "escrow_amount",
             "type": "u64"
           },
           {
@@ -914,12 +1383,39 @@
             }
           },
           {
-            "name": "timestamp_seed",
-            "type": "i64"
+            "name": "nonce_seed",
+            "type": "u64"
           },
           {
             "name": "bump",
             "type": "u8"
+          },
+          {
+            "name": "token_mint",
+            "docs": [
+              "SPL token mint (None = SOL-denominated job)"
+            ],
+            "type": {
+              "option": "pubkey"
+            }
+          },
+          {
+            "name": "escrow_vault",
+            "docs": [
+              "Token escrow vault address (None for SOL jobs)"
+            ],
+            "type": {
+              "option": "pubkey"
+            }
+          },
+          {
+            "name": "arbiter",
+            "docs": [
+              "Designated dispute arbiter (None = timeout-only resolution)"
+            ],
+            "type": {
+              "option": "pubkey"
+            }
           }
         ]
       }
@@ -938,7 +1434,7 @@
             "type": "pubkey"
           },
           {
-            "name": "refund_lamports",
+            "name": "refund_amount",
             "type": "u64"
           }
         ]
@@ -982,8 +1478,14 @@
             "type": "pubkey"
           },
           {
-            "name": "escrow_lamports",
+            "name": "escrow_amount",
             "type": "u64"
+          },
+          {
+            "name": "token_mint",
+            "type": {
+              "option": "pubkey"
+            }
           },
           {
             "name": "auto_release_at",
@@ -1068,6 +1570,12 @@
           {
             "name": "auto_released",
             "type": "bool"
+          },
+          {
+            "name": "token_mint",
+            "type": {
+              "option": "pubkey"
+            }
           }
         ]
       }
@@ -1096,6 +1604,50 @@
           {
             "name": "created_at",
             "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "StakeSlashed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "agent",
+            "type": "pubkey"
+          },
+          {
+            "name": "job",
+            "type": "pubkey"
+          },
+          {
+            "name": "slash_amount",
+            "type": "u64"
+          },
+          {
+            "name": "remaining_stake",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "StakeVault",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "agent_profile",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
           },
           {
             "name": "bump",

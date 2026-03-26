@@ -8,6 +8,10 @@ pub mod delegate_task;
 pub mod raise_dispute;
 pub mod resolve_dispute;
 pub mod rate_agent;
+pub mod stake_agent;
+pub mod unstake_agent;
+pub mod resolve_dispute_arbiter;
+pub mod update_agent;
 
 pub use register_agent::*;
 pub use invoke_agent::*;
@@ -19,3 +23,7 @@ pub use delegate_task::*;
 pub use raise_dispute::*;
 pub use resolve_dispute::*;
 pub use rate_agent::*;
+pub use stake_agent::*;
+pub use unstake_agent::*;
+pub use resolve_dispute_arbiter::*;
+pub use update_agent::*;
