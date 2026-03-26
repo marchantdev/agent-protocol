@@ -6,7 +6,7 @@
 
 AI agents have no on-chain payment rails. Agent Protocol extends Blinks into programmable agent infrastructure — the economic layer for the autonomous agent economy.
 
-[Watch the demo](https://streamable.com/zw3jss) | [Try the Blink](https://dial.to/devnet?action=solana-action:https://agent-protocol.onrender.com/api/actions/invoke)
+[Watch the v1 demo](https://streamable.com/zw3jss) — v2 demo coming soon
 
 ---
 
