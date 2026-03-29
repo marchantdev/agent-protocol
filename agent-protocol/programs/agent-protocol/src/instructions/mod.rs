@@ -12,6 +12,8 @@ pub mod stake_agent;
 pub mod unstake_agent;
 pub mod resolve_dispute_arbiter;
 pub mod update_agent;
+pub mod reject_job;
+pub mod close_job;
 
 pub use register_agent::*;
 pub use invoke_agent::*;
@@ -27,3 +29,5 @@ pub use stake_agent::*;
 pub use unstake_agent::*;
 pub use resolve_dispute_arbiter::*;
 pub use update_agent::*;
+pub use reject_job::*;
+pub use close_job::*;

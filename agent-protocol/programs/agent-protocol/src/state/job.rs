@@ -25,6 +25,8 @@ pub struct Job {
     pub escrow_vault: Option<Pubkey>,
     /// Designated dispute arbiter (None = timeout-only resolution)
     pub arbiter: Option<Pubkey>,
+    /// Arbiter fee in basis points (e.g., 500 = 5%). Paid from escrow on resolution.
+    pub arbiter_fee_bps: u16,
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, InitSpace)]

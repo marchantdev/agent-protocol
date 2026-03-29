@@ -79,6 +79,30 @@ export type AgentProtocol = {
       "args": []
     },
     {
+      "name": "closeJob",
+      "discriminator": [
+        90,
+        100,
+        180,
+        200,
+        200,
+        163,
+        120,
+        182
+      ],
+      "accounts": [
+        {
+          "name": "client",
+          "writable": true
+        },
+        {
+          "name": "job",
+          "writable": true
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "delegateTask",
       "discriminator": [
         204,
@@ -237,6 +261,10 @@ export type AgentProtocol = {
           "type": {
             "option": "pubkey"
           }
+        },
+        {
+          "name": "arbiterFeeBps",
+          "type": "u16"
         }
       ]
     },
@@ -389,6 +417,34 @@ export type AgentProtocol = {
       ]
     },
     {
+      "name": "rejectJob",
+      "discriminator": [
+        94,
+        15,
+        241,
+        118,
+        161,
+        177,
+        128,
+        101
+      ],
+      "accounts": [
+        {
+          "name": "agent",
+          "signer": true
+        },
+        {
+          "name": "client",
+          "writable": true
+        },
+        {
+          "name": "job",
+          "writable": true
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "releasePayment",
       "discriminator": [
         24,
@@ -444,6 +500,7 @@ export type AgentProtocol = {
       "accounts": [
         {
           "name": "arbiter",
+          "writable": true,
           "signer": true
         },
         {
@@ -498,22 +555,6 @@ export type AgentProtocol = {
         {
           "name": "job",
           "writable": true
-        },
-        {
-          "name": "stakeVault",
-          "docs": [
-            "Optional stake vault for slashing agent collateral"
-          ],
-          "writable": true,
-          "optional": true
-        },
-        {
-          "name": "agentProfile",
-          "docs": [
-            "Optional agent profile (required if stake_vault is provided)"
-          ],
-          "writable": true,
-          "optional": true
         }
       ],
       "args": []
@@ -886,6 +927,19 @@ export type AgentProtocol = {
       ]
     },
     {
+      "name": "arbiterPaid",
+      "discriminator": [
+        98,
+        199,
+        107,
+        163,
+        251,
+        48,
+        61,
+        245
+      ]
+    },
+    {
       "name": "disputeRaised",
       "discriminator": [
         246,
@@ -961,6 +1015,19 @@ export type AgentProtocol = {
         233,
         158,
         11
+      ]
+    },
+    {
+      "name": "jobRejected",
+      "discriminator": [
+        23,
+        78,
+        227,
+        57,
+        28,
+        0,
+        197,
+        216
       ]
     },
     {
@@ -1110,6 +1177,26 @@ export type AgentProtocol = {
       "code": 6023,
       "name": "escrowVaultMismatch",
       "msg": "Escrow vault mismatch"
+    },
+    {
+      "code": 6024,
+      "name": "selfInvocation",
+      "msg": "Cannot invoke your own agent"
+    },
+    {
+      "code": 6025,
+      "name": "emptyName",
+      "msg": "Agent name is required"
+    },
+    {
+      "code": 6026,
+      "name": "arbiterFeeTooHigh",
+      "msg": "Arbiter fee too high (max 25%)"
+    },
+    {
+      "code": 6027,
+      "name": "arbiterRequiredForCompletedDispute",
+      "msg": "Completed jobs require an arbiter for disputes"
     }
   ],
   "types": [
@@ -1288,6 +1375,26 @@ export type AgentProtocol = {
       }
     },
     {
+      "name": "arbiterPaid",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "arbiter",
+            "type": "pubkey"
+          },
+          {
+            "name": "job",
+            "type": "pubkey"
+          },
+          {
+            "name": "feeAmount",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
       "name": "disputeRaised",
       "type": {
         "kind": "struct",
@@ -1422,6 +1529,13 @@ export type AgentProtocol = {
             "type": {
               "option": "pubkey"
             }
+          },
+          {
+            "name": "arbiterFeeBps",
+            "docs": [
+              "Arbiter fee in basis points (e.g., 500 = 5%). Paid from escrow on resolution."
+            ],
+            "type": "u16"
           }
         ]
       }
@@ -1525,6 +1639,26 @@ export type AgentProtocol = {
           },
           {
             "name": "amount",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "jobRejected",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "job",
+            "type": "pubkey"
+          },
+          {
+            "name": "agent",
+            "type": "pubkey"
+          },
+          {
+            "name": "refundAmount",
             "type": "u64"
           }
         ]

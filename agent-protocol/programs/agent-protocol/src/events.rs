@@ -99,3 +99,17 @@ pub struct StakeSlashed {
     pub slash_amount: u64,
     pub remaining_stake: u64,
 }
+
+#[event]
+pub struct ArbiterPaid {
+    pub arbiter: Pubkey,
+    pub job: Pubkey,
+    pub fee_amount: u64,
+}
+
+#[event]
+pub struct JobRejected {
+    pub job: Pubkey,
+    pub agent: Pubkey,
+    pub refund_amount: u64,
+}

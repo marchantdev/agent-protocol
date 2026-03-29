@@ -85,7 +85,7 @@ describe("agent-protocol", () => {
     const nonce = await getNonce(agentProfilePDA);
     const [jobPDA] = getJobPDA(client.publicKey, agentProfilePDA, nonce);
     await program.methods
-      .invokeAgent(desc, payment, autoReleaseSecs, nonce, null, null)
+      .invokeAgent(desc, payment, autoReleaseSecs, nonce, null, null, 0)
       .accountsPartial({
         client: client.publicKey,
         agentProfile: agentProfilePDA,
@@ -268,7 +268,7 @@ describe("agent-protocol", () => {
         await registerAgent(kp, "");
         expect.fail("Should have thrown");
       } catch (err: any) {
-        expectAnchorError(err, "EmptyDescription");
+        expectAnchorError(err, "EmptyName");
       }
     });
 
@@ -1113,24 +1113,19 @@ describe("agent-protocol", () => {
   // ═══════════════════════════════════════
 
   describe("HIGH VALUE: Dispute full flow", () => {
-    it("invoke → complete → dispute → status transitions cleanly", async () => {
+    it("invoke → complete → dispute on completed job without arbiter fails", async () => {
       const { jobPDA } = await invokeAgent(clientKp, agentProfileA);
       await updateJob(agentOwnerA, jobPDA);
 
       let job = await program.account.job.fetch(jobPDA);
       expect(Object.keys(job.status)[0]).to.equal("completed");
 
-      await raiseDispute(clientKp, jobPDA);
-      job = await program.account.job.fetch(jobPDA);
-      expect(Object.keys(job.status)[0]).to.equal("disputed");
-      expect(job.disputedAt).to.not.be.null;
-
-      // Verify no double dispute
+      // Completed jobs require an arbiter for disputes
       try {
         await raiseDispute(clientKp, jobPDA);
-        expect.fail("Should have thrown");
+        expect.fail("Should have thrown — no arbiter set");
       } catch (err: any) {
-        expectAnchorError(err, "InvalidJobStatus");
+        expectAnchorError(err, "ArbiterRequiredForCompletedDispute");
       }
     });
   });
@@ -1422,7 +1417,7 @@ describe("agent-protocol", () => {
       const nonce = await getNonce(profilePDA);
       const [jobPDA] = getJobPDA(client.publicKey, profilePDA, nonce);
       const invokeTx = await program.methods
-        .invokeAgent("Event test", PAYMENT, null, nonce, null, null)
+        .invokeAgent("Event test", PAYMENT, null, nonce, null, null, 0)
         .accountsPartial({ client: client.publicKey, agentProfile: profilePDA })
         .signers([client])
         .rpc();
@@ -1508,7 +1503,7 @@ describe("agent-protocol", () => {
       const nonce1 = await getNonce(profilePDA);
       const [jobPDA1] = getJobPDA(client.publicKey, profilePDA, nonce1);
       const invokeTx = await program.methods
-        .invokeAgent("CU test task", PAYMENT, null, nonce1, null, null)
+        .invokeAgent("CU test task", PAYMENT, null, nonce1, null, null, 0)
         .accountsPartial({ client: client.publicKey, agentProfile: profilePDA })
         .signers([client])
         .rpc();
@@ -1540,7 +1535,7 @@ describe("agent-protocol", () => {
       const nonce2 = await getNonce(profilePDA);
       const [jobPDA2] = getJobPDA(client.publicKey, profilePDA, nonce2);
       await program.methods
-        .invokeAgent("CU delegate test", PAYMENT, null, nonce2, null, null)
+        .invokeAgent("CU delegate test", PAYMENT, null, nonce2, null, null, 0)
         .accountsPartial({ client: client.publicKey, agentProfile: profilePDA })
         .signers([client])
         .rpc();

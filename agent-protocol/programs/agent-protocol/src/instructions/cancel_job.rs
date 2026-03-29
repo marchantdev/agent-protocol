@@ -1,5 +1,7 @@
 use anchor_lang::prelude::*;
+use anchor_lang::AccountDeserialize;
 use anchor_spl::token;
+use anchor_spl::token::TokenAccount as SplTokenAccount;
 use crate::state::{Job, JobStatus};
 use crate::error::AgentProtocolError;
 use crate::events::JobCancelled;
@@ -53,6 +55,21 @@ pub fn handler<'info>(ctx: Context<'_, '_, 'info, 'info, CancelJob<'info>>) -> R
             *token_prog_info.key == anchor_spl::token::ID,
             AgentProtocolError::InvalidTokenAccounts
         );
+        require!(
+            ctx.accounts.job.escrow_vault == Some(escrow_vault_info.key()),
+            AgentProtocolError::EscrowVaultMismatch
+        );
+
+        // Validate client token account
+        {
+            let client_token_data = client_token_info.try_borrow_data()?;
+            let client_token_acct = SplTokenAccount::try_deserialize(&mut &client_token_data[..])
+                .map_err(|_| error!(AgentProtocolError::InvalidTokenAccounts))?;
+            require!(
+                client_token_acct.owner == ctx.accounts.client.key(),
+                AgentProtocolError::InvalidTokenAccounts
+            );
+        }
 
         let seeds: &[&[u8]] = &[
             b"job",
@@ -74,6 +91,19 @@ pub fn handler<'info>(ctx: Context<'_, '_, 'info, 'info, CancelJob<'info>>) -> R
                 signer,
             ),
             refund_amount,
+        )?;
+
+        // Close the escrow vault, return rent to client
+        token::close_account(
+            CpiContext::new_with_signer(
+                token_prog_info.to_account_info(),
+                token::CloseAccount {
+                    account: escrow_vault_info.to_account_info(),
+                    destination: ctx.accounts.client.to_account_info(),
+                    authority: ctx.accounts.job.to_account_info(),
+                },
+                signer,
+            ),
         )?;
     } else {
         let job_info = ctx.accounts.job.to_account_info();

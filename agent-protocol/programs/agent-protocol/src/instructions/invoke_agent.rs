@@ -1,9 +1,12 @@
 use anchor_lang::prelude::*;
 use anchor_lang::system_program;
+use anchor_lang::AccountDeserialize;
 use anchor_spl::token;
+use anchor_spl::token::TokenAccount as SplTokenAccount;
 use crate::state::{AgentProfile, Job, JobStatus};
 use crate::error::AgentProtocolError;
 use crate::events::JobCreated;
+use crate::constants::MAX_ARBITER_FEE_BPS;
 
 #[derive(Accounts)]
 #[instruction(description: String, payment_amount: u64, auto_release_seconds: Option<i64>, nonce: u64)]
@@ -44,6 +47,7 @@ pub fn handler<'info>(
     nonce: u64,
     token_mint: Option<Pubkey>,
     arbiter: Option<Pubkey>,
+    arbiter_fee_bps: u16,
 ) -> Result<()> {
     require!(!description.is_empty(), AgentProtocolError::EmptyDescription);
     require!(description.len() <= 256, AgentProtocolError::DescriptionTooLong);
@@ -51,6 +55,17 @@ pub fn handler<'info>(
         payment_amount >= ctx.accounts.agent_profile.price_lamports,
         AgentProtocolError::InsufficientPayment
     );
+    require!(
+        ctx.accounts.client.key() != ctx.accounts.agent_profile.owner,
+        AgentProtocolError::SelfInvocation
+    );
+    if let Some(arb) = arbiter {
+        require!(arbiter_fee_bps <= MAX_ARBITER_FEE_BPS, AgentProtocolError::ArbiterFeeTooHigh);
+        require!(arb != ctx.accounts.client.key(), AgentProtocolError::InvalidArbiter);
+        require!(arb != ctx.accounts.agent_profile.owner, AgentProtocolError::InvalidArbiter);
+    } else {
+        require!(arbiter_fee_bps == 0, AgentProtocolError::ArbiterFeeTooHigh);
+    }
 
     // Validate and increment nonce
     let profile = &mut ctx.accounts.agent_profile;
@@ -81,6 +96,15 @@ pub fn handler<'info>(
             *token_prog_info.key == anchor_spl::token::ID,
             AgentProtocolError::InvalidTokenAccounts
         );
+
+        // Validate escrow vault: must be a token account with correct mint and Job PDA authority
+        {
+            let vault_data = escrow_vault_info.try_borrow_data()?;
+            let vault_acct = SplTokenAccount::try_deserialize(&mut &vault_data[..])
+                .map_err(|_| error!(AgentProtocolError::InvalidTokenAccounts))?;
+            require!(vault_acct.mint == mint, AgentProtocolError::InvalidTokenAccounts);
+            require!(vault_acct.owner == ctx.accounts.job.key(), AgentProtocolError::InvalidTokenAccounts);
+        }
 
         // Transfer tokens from client to escrow vault
         token::transfer(
@@ -132,6 +156,7 @@ pub fn handler<'info>(
     job.token_mint = mint_key;
     job.escrow_vault = vault_key;
     job.arbiter = arbiter;
+    job.arbiter_fee_bps = arbiter_fee_bps;
 
     emit!(JobCreated {
         job: job.key(),

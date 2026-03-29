@@ -32,6 +32,7 @@ pub mod agent_protocol {
         nonce: u64,
         token_mint: Option<Pubkey>,
         arbiter: Option<Pubkey>,
+        arbiter_fee_bps: u16,
     ) -> Result<()> {
         instructions::invoke_agent::handler(
             ctx,
@@ -41,6 +42,7 @@ pub mod agent_protocol {
             nonce,
             token_mint,
             arbiter,
+            arbiter_fee_bps,
         )
     }
 
@@ -115,5 +117,15 @@ pub mod agent_protocol {
         is_active: Option<bool>,
     ) -> Result<()> {
         instructions::update_agent::handler(ctx, name, description, capabilities, price_lamports, is_active)
+    }
+
+    pub fn reject_job<'info>(
+        ctx: Context<'_, '_, 'info, 'info, RejectJob<'info>>,
+    ) -> Result<()> {
+        instructions::reject_job::handler(ctx)
+    }
+
+    pub fn close_job(ctx: Context<CloseJob>) -> Result<()> {
+        instructions::close_job::handler(ctx)
     }
 }

@@ -12,7 +12,10 @@ pub struct RateAgent<'info> {
         constraint = job.client == client.key() @ AgentProtocolError::Unauthorized
     )]
     pub job: Account<'info, Job>,
-    #[account(mut)]
+    #[account(
+        mut,
+        constraint = agent_profile.owner == job.agent @ AgentProtocolError::Unauthorized
+    )]
     pub agent_profile: Account<'info, AgentProfile>,
     #[account(
         init,

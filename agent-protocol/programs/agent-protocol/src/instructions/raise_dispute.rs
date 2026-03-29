@@ -26,6 +26,14 @@ pub fn handler(ctx: Context<RaiseDispute>) -> Result<()> {
         AgentProtocolError::InvalidJobStatus
     );
 
+    // Completed jobs require an arbiter — timeout can't evaluate work quality
+    if job.status == JobStatus::Completed {
+        require!(
+            job.arbiter.is_some(),
+            AgentProtocolError::ArbiterRequiredForCompletedDispute
+        );
+    }
+
     job.status = JobStatus::Disputed;
     job.disputed_at = Some(Clock::get()?.unix_timestamp);
 

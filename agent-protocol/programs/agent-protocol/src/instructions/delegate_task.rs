@@ -1,5 +1,7 @@
 use anchor_lang::prelude::*;
+use anchor_lang::AccountDeserialize;
 use anchor_spl::token;
+use anchor_spl::token::TokenAccount as SplTokenAccount;
 use crate::state::{AgentProfile, Job, JobStatus};
 use crate::error::AgentProtocolError;
 use crate::events::JobDelegated;
@@ -91,6 +93,25 @@ pub fn handler<'info>(
             *token_prog_info.key == anchor_spl::token::ID,
             AgentProtocolError::InvalidTokenAccounts
         );
+        require!(
+            ctx.accounts.parent_job.escrow_vault == Some(parent_vault_info.key()),
+            AgentProtocolError::EscrowVaultMismatch
+        );
+
+        // Validate child vault: correct mint and authority is child Job PDA
+        {
+            let child_vault_data = child_vault_info.try_borrow_data()?;
+            let child_vault_acct = SplTokenAccount::try_deserialize(&mut &child_vault_data[..])
+                .map_err(|_| error!(AgentProtocolError::InvalidTokenAccounts))?;
+            require!(
+                child_vault_acct.mint == parent_token_mint.unwrap(),
+                AgentProtocolError::InvalidTokenAccounts
+            );
+            require!(
+                child_vault_acct.owner == ctx.accounts.child_job.key(),
+                AgentProtocolError::InvalidTokenAccounts
+            );
+        }
 
         let parent_nonce_bytes = ctx.accounts.parent_job.nonce_seed.to_le_bytes();
         let parent_bump = ctx.accounts.parent_job.bump;
@@ -164,6 +185,7 @@ pub fn handler<'info>(
     child.token_mint = parent_token_mint;
     child.escrow_vault = child_escrow_vault;
     child.arbiter = None;
+    child.arbiter_fee_bps = 0;
 
     emit!(JobDelegated {
         parent_job: ctx.accounts.parent_job.key(),

@@ -28,7 +28,7 @@ pub fn handler(
     require!(name.len() <= 32, AgentProtocolError::NameTooLong);
     require!(description.len() <= 128, AgentProtocolError::DescriptionTooLong);
     require!(price_lamports > 0, AgentProtocolError::InvalidPrice);
-    require!(!name.is_empty(), AgentProtocolError::EmptyDescription);
+    require!(!name.is_empty(), AgentProtocolError::EmptyName);
 
     let profile = &mut ctx.accounts.agent_profile;
     profile.owner = ctx.accounts.owner.key();

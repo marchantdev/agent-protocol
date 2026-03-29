@@ -13,6 +13,9 @@ pub const SLASH_BPS: u64 = 5000;
 /// Basis points denominator
 pub const BPS_DENOMINATOR: u64 = 10000;
 
+/// Maximum arbiter fee (25%)
+pub const MAX_ARBITER_FEE_BPS: u16 = 2500;
+
 // Capability bitmask values
 pub const CAP_CODE_REVIEW: u16 = 1 << 0;
 pub const CAP_SECURITY_AUDIT: u16 = 1 << 1;

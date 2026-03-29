@@ -1,5 +1,7 @@
 use anchor_lang::prelude::*;
+use anchor_lang::AccountDeserialize;
 use anchor_spl::token;
+use anchor_spl::token::TokenAccount as SplTokenAccount;
 use crate::state::{AgentProfile, Job, JobStatus};
 use crate::error::AgentProtocolError;
 use crate::events::PaymentReleased;
@@ -74,6 +76,21 @@ pub fn handler<'info>(ctx: Context<'_, '_, 'info, 'info, ReleasePayment<'info>>)
             AgentProtocolError::EscrowVaultMismatch
         );
 
+        // Validate recipient token account belongs to the agent
+        {
+            let agent_token_data = agent_token_info.try_borrow_data()?;
+            let agent_token_acct = SplTokenAccount::try_deserialize(&mut &agent_token_data[..])
+                .map_err(|_| error!(AgentProtocolError::InvalidTokenAccounts))?;
+            require!(
+                agent_token_acct.owner == ctx.accounts.agent.key(),
+                AgentProtocolError::InvalidTokenAccounts
+            );
+            require!(
+                agent_token_acct.mint == token_mint_key.unwrap(),
+                AgentProtocolError::InvalidTokenAccounts
+            );
+        }
+
         let seeds: &[&[u8]] = &[
             b"job",
             client_key.as_ref(),
@@ -94,6 +111,19 @@ pub fn handler<'info>(ctx: Context<'_, '_, 'info, 'info, ReleasePayment<'info>>)
                 signer,
             ),
             escrow_amount,
+        )?;
+
+        // Close the escrow vault, return rent to client
+        token::close_account(
+            CpiContext::new_with_signer(
+                token_prog_info.to_account_info(),
+                token::CloseAccount {
+                    account: escrow_vault_info.to_account_info(),
+                    destination: ctx.accounts.client.to_account_info(),
+                    authority: ctx.accounts.job.to_account_info(),
+                },
+                signer,
+            ),
         )?;
     } else {
         // SOL transfer via direct lamport manipulation

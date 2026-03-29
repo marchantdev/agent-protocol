@@ -73,6 +73,30 @@
       "args": []
     },
     {
+      "name": "close_job",
+      "discriminator": [
+        90,
+        100,
+        180,
+        200,
+        200,
+        163,
+        120,
+        182
+      ],
+      "accounts": [
+        {
+          "name": "client",
+          "writable": true
+        },
+        {
+          "name": "job",
+          "writable": true
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "delegate_task",
       "discriminator": [
         204,
@@ -231,6 +255,10 @@
           "type": {
             "option": "pubkey"
           }
+        },
+        {
+          "name": "arbiter_fee_bps",
+          "type": "u16"
         }
       ]
     },
@@ -383,6 +411,34 @@
       ]
     },
     {
+      "name": "reject_job",
+      "discriminator": [
+        94,
+        15,
+        241,
+        118,
+        161,
+        177,
+        128,
+        101
+      ],
+      "accounts": [
+        {
+          "name": "agent",
+          "signer": true
+        },
+        {
+          "name": "client",
+          "writable": true
+        },
+        {
+          "name": "job",
+          "writable": true
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "release_payment",
       "discriminator": [
         24,
@@ -438,6 +494,7 @@
       "accounts": [
         {
           "name": "arbiter",
+          "writable": true,
           "signer": true
         },
         {
@@ -492,22 +549,6 @@
         {
           "name": "job",
           "writable": true
-        },
-        {
-          "name": "stake_vault",
-          "docs": [
-            "Optional stake vault for slashing agent collateral"
-          ],
-          "writable": true,
-          "optional": true
-        },
-        {
-          "name": "agent_profile",
-          "docs": [
-            "Optional agent profile (required if stake_vault is provided)"
-          ],
-          "writable": true,
-          "optional": true
         }
       ],
       "args": []
@@ -880,6 +921,19 @@
       ]
     },
     {
+      "name": "ArbiterPaid",
+      "discriminator": [
+        98,
+        199,
+        107,
+        163,
+        251,
+        48,
+        61,
+        245
+      ]
+    },
+    {
       "name": "DisputeRaised",
       "discriminator": [
         246,
@@ -955,6 +1009,19 @@
         233,
         158,
         11
+      ]
+    },
+    {
+      "name": "JobRejected",
+      "discriminator": [
+        23,
+        78,
+        227,
+        57,
+        28,
+        0,
+        197,
+        216
       ]
     },
     {
@@ -1104,6 +1171,26 @@
       "code": 6023,
       "name": "EscrowVaultMismatch",
       "msg": "Escrow vault mismatch"
+    },
+    {
+      "code": 6024,
+      "name": "SelfInvocation",
+      "msg": "Cannot invoke your own agent"
+    },
+    {
+      "code": 6025,
+      "name": "EmptyName",
+      "msg": "Agent name is required"
+    },
+    {
+      "code": 6026,
+      "name": "ArbiterFeeTooHigh",
+      "msg": "Arbiter fee too high (max 25%)"
+    },
+    {
+      "code": 6027,
+      "name": "ArbiterRequiredForCompletedDispute",
+      "msg": "Completed jobs require an arbiter for disputes"
     }
   ],
   "types": [
@@ -1282,6 +1369,26 @@
       }
     },
     {
+      "name": "ArbiterPaid",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "arbiter",
+            "type": "pubkey"
+          },
+          {
+            "name": "job",
+            "type": "pubkey"
+          },
+          {
+            "name": "fee_amount",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
       "name": "DisputeRaised",
       "type": {
         "kind": "struct",
@@ -1416,6 +1523,13 @@
             "type": {
               "option": "pubkey"
             }
+          },
+          {
+            "name": "arbiter_fee_bps",
+            "docs": [
+              "Arbiter fee in basis points (e.g., 500 = 5%). Paid from escrow on resolution."
+            ],
+            "type": "u16"
           }
         ]
       }
@@ -1519,6 +1633,26 @@
           },
           {
             "name": "amount",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "JobRejected",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "job",
+            "type": "pubkey"
+          },
+          {
+            "name": "agent",
+            "type": "pubkey"
+          },
+          {
+            "name": "refund_amount",
             "type": "u64"
           }
         ]

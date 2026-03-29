@@ -50,4 +50,12 @@ pub enum AgentProtocolError {
     MissingTokenAccounts,
     #[msg("Escrow vault mismatch")]
     EscrowVaultMismatch,
+    #[msg("Cannot invoke your own agent")]
+    SelfInvocation,
+    #[msg("Agent name is required")]
+    EmptyName,
+    #[msg("Arbiter fee too high (max 25%)")]
+    ArbiterFeeTooHigh,
+    #[msg("Completed jobs require an arbiter for disputes")]
+    ArbiterRequiredForCompletedDispute,
 }

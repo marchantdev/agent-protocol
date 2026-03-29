@@ -27,7 +27,7 @@ pub fn handler(
 
     if let Some(ref name) = name {
         require!(name.len() <= 32, AgentProtocolError::NameTooLong);
-        require!(!name.is_empty(), AgentProtocolError::EmptyDescription);
+        require!(!name.is_empty(), AgentProtocolError::EmptyName);
         profile.name = name.clone();
     }
 
