@@ -1,0 +1,43 @@
+{
+  "name": "agent-protocol-elizaos",
+  "version": "0.1.0",
+  "description": "ElizaOS plugin for Agent Protocol — trustless agent-to-agent payments on Solana",
+  "license": "MIT",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "@solana/web3.js": "^1.98.0",
+    "agent-protocol-sdk": "^0.2.0"
+  },
+  "peerDependencies": {
+    "@elizaos/core": ">=0.1.0"
+  },
+  "keywords": [
+    "elizaos",
+    "plugin",
+    "agent-protocol",
+    "solana",
+    "ai-agent",
+    "escrow",
+    "payments"
+  ],
+  "devDependencies": {
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3"
+  }
+}

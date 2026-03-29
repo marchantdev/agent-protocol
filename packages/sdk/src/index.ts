@@ -34,4 +34,13 @@ export {
 
 export { AgentProtocolError, AccountNotFoundError, ERROR_MAP } from './errors';
 export { EventSubscription } from './events/subscription';
+export {
+  keypairToWalletAdapter,
+  capabilitiesToStrings,
+  stringsToCapabilities,
+  formatError,
+  isValidPublicKey,
+  solToLamports,
+  lamportsToSol,
+} from './utils';
 export { default as IDL } from './idl/agent_protocol.json';
