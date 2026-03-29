@@ -3,7 +3,6 @@ import {
   AgentProtocolClient,
   keypairToWalletAdapter,
 } from 'agent-protocol-sdk';
-import bs58 from 'bs58';
 
 let cachedClient: AgentProtocolClient | null = null;
 let cachedRpc: string | null = null;
@@ -27,11 +26,22 @@ export function getClient(runtime: any): AgentProtocolClient {
 
   let keypair: Keypair;
   try {
-    // Try base58 first, then JSON array
+    // Try JSON array first, then raw bytes
     if (privateKey.startsWith('[')) {
       keypair = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(privateKey)));
     } else {
-      keypair = Keypair.fromSecretKey(bs58.decode(privateKey));
+      // Decode base58 without external dependency
+      const ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+      let num = BigInt(0);
+      for (const char of privateKey) {
+        const idx = ALPHABET.indexOf(char);
+        if (idx === -1) throw new Error('Invalid base58 character');
+        num = num * BigInt(58) + BigInt(idx);
+      }
+      const hex = num.toString(16).padStart(128, '0');
+      const bytes = new Uint8Array(64);
+      for (let i = 0; i < 64; i++) bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
+      keypair = Keypair.fromSecretKey(bytes);
     }
   } catch {
     throw new Error('Invalid SOLANA_PRIVATE_KEY. Provide a base58 string or JSON byte array.');
