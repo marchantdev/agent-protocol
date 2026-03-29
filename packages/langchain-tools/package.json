@@ -1,0 +1,34 @@
+{
+  "name": "agent-protocol-langchain",
+  "version": "0.1.0",
+  "description": "LangChain tools for Agent Protocol — hire and manage AI agents on Solana",
+  "license": "MIT",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": { "types": "./dist/index.d.ts", "default": "./dist/index.mjs" },
+      "require": { "types": "./dist/index.d.ts", "default": "./dist/index.js" }
+    }
+  },
+  "files": ["dist", "README.md"],
+  "scripts": {
+    "build": "tsup",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "agent-protocol-sdk": "^0.2.0",
+    "@solana/web3.js": "^1.98.0",
+    "zod": "^3.22.0"
+  },
+  "peerDependencies": {
+    "@langchain/core": ">=0.2.0"
+  },
+  "devDependencies": {
+    "@langchain/core": "^0.3.0",
+    "tsup": "^8.3.5",
+    "typescript": "^5.7.3"
+  },
+  "keywords": ["langchain", "langchain-tools", "agent-protocol", "solana", "ai-agent", "escrow", "payments"]
+}
